@@ -1,0 +1,19 @@
+@startuml
+title Order Status State
+
+[*] --> Pending
+state choicePoint <<choice>>
+Pending --> choicePoint : Restaurant reviews
+choicePoint --> Confirmed : [in stock]
+choicePoint --> Cancelled : [out of stock]
+
+Pending --> Cancelled : Customer cancels order
+Confirmed --> Preparing : Restaurant confirms preparing
+Confirmed --> Cancelled : Customer cancels order
+Preparing --> For_Pickup : Restaurant tags for pickup
+For_Pickup --> Cancelled : Timeout(1hr) / banCustomer()
+For_Pickup --> Received : Customer confirms handoff
+
+Received --> [*]
+Cancelled --> [*]
+@enduml
