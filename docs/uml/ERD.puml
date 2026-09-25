@@ -39,10 +39,11 @@ entity "MenuItems" as menu {
     * **menuItemId** : BIGINT(20) <<PK, AUTO_INCREMENT>>
     --
     * restaurantId : BIGINT(20) << FK, Restaurants>>
-    * name : VARCHAR(45)
+    * itemName : VARCHAR(45)
     * description : VARCHAR(254)
     * price : DECIMAL(15,2)
     * isAvailable : BOOLEAN
+    * isDeleted : BOOLEAN
 }
 
 entity "Orders" as order {
@@ -65,11 +66,10 @@ entity "OrderItems" as item {
 }
 
 entity "Carts" as cart {
-    * **orderId** : BIGINT(20) <<PK, AUTO_INCREMENT>>
+    * **cartId** : BIGINT(20) <<PK, AUTO_INCREMENT>>
     --
     * customerId : BIGINT(20) <<FK, Customers>>
     * restaurantId : BIGINT(20) <<FK, Restaurants>>
-    * status : VARCHAR(20)
     * totalAmount : DECIMAL(15,2)
     * createdAt : DATETIME
 }
@@ -77,10 +77,9 @@ entity "Carts" as cart {
 entity "CartItems" as cartitem {
     * **cartItemId** : BIGINT(20) <<PK, AUTO_INCREMENT>>
     --
-    * cartId : BIGINT(20) <<FK, Orders>>
+    * cartId : BIGINT(20) <<FK, Carts>>
     * menuItemId : BIGINT(20) <<FK, MenuItems>>
     * quantity : INT(3)
-    * priceAtOrderTime : DECIMAL(15,2)
 }
 
 user ||--o|resto
