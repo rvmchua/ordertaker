@@ -22,8 +22,8 @@ OrderTaker models the core flow of a food ordering platform: customers browse re
 - **Language:** Java
 - **Framework:** Spring Boot (Spring Web, Spring Data JPA, Spring Security)
 - **Auth:** JWT-based authentication, email + password login
-- **Database:** Relational — TBD between MySQL and PostgreSQL. The schema's type syntax (e.g. `BIGINT(20)` display widths) reflects MySQL conventions, but the deploy plan targets Render + Supabase/Neon, which are Postgres-based — worth settling before writing entity definitions, since PostgreSQL doesn't support MySQL's integer display-width syntax
-- **Build tool:** *TBD — Maven or Gradle*
+- **Database:** TBD between MySQL and PostgreSQL.
+- **Build tool:** Maven
 
 ## Data Model
 
