@@ -1,10 +1,7 @@
 package com.rvmc.ordertaker.entity;
 
 import jakarta.persistence.*;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.ZonedDateTime;
@@ -15,6 +12,7 @@ import java.time.ZonedDateTime;
 @Setter
 @Builder
 @NoArgsConstructor
+@AllArgsConstructor
 public class Restaurant {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,6 +21,8 @@ public class Restaurant {
     private String address1;
     private String address2;
 
+    @OneToOne
+    @JoinColumn(name = "owner_id", nullable = false, unique = true)
     private User owner;
     private Boolean isActive;
     private Boolean toDelete;
