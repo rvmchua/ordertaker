@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# AI Blueprint local workflow files
+.agents/
+.claude/
+blueprint/
+CLAUDE.md

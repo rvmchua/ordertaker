@@ -78,6 +78,22 @@ Notable decisions baked into the contract:
 - Menu items carry two independent flags: `isAvailable` (temporary, restaurant-toggleable) and `isDeleted` (permanent removal from active views, filtered out everywhere except order history, so past orders still display correctly).
 - Every state-changing status update returns `409 Conflict` on an invalid transition rather than silently accepting it.
 
+### Authentication response
+
+Customer and restaurant-owner login return `200 OK` with a short-lived access token:
+
+```json
+{
+  "accessToken": "<JWT>",
+  "tokenType": "Bearer",
+  "expiresIn": 900
+}
+```
+
+Send the token as `Authorization: Bearer <accessToken>` for protected requests. Tokens expire after 15 minutes; logout does not revoke a copied token, so clients must discard it. Browser clients on another origin require that origin to be explicitly configured in `APP_CORS_ALLOWED_ORIGINS`. The API does not allow credentialed CORS.
+
+Configure `JWT_SECRET_BASE64` with a Base64-encoded key containing at least 32 random bytes. `APP_CORS_ALLOWED_ORIGINS` is an optional comma-separated list of exact HTTP(S) origins; it defaults to no cross-origin browser access. Do not use a wildcard.
+
 ## Implementation Roadmap
 
 **Phase 0 — Planning & Design** ✅

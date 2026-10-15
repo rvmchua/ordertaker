@@ -19,14 +19,21 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long userId;
 
+    @Column(nullable = false)
     private String username;
+
+    @Column(nullable = false, length = 320)
     private String email;
+
+    @Column(nullable = false)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
     private Role role;
 
     @CreationTimestamp
+    @Column(nullable = false)
     private ZonedDateTime createdAt;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
