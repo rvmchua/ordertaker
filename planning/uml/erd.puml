@@ -6,7 +6,7 @@ hide circle
 entity "Users" as user {
     * **userId** : BIGINT(20) <<PK, AUTO_INCREMENT>>
     --
-    * name : VARCHAR(45)
+    * username : VARCHAR(45)
     * email : VARCHAR(254)
     * passwordHash : VARCHAR(60)
     * role : VARCHAR(20)
@@ -16,7 +16,9 @@ entity "Users" as user {
 entity "Customers" as customer {
     * **customerId** : BIGINT(20) <<PK, AUTO_INCREMENT>>
     --
-    * address : VARCHAR(100)
+    * customerName: VARCHAR(45)
+    * address1 : VARCHAR(100)
+    * address2 : VARCHAR(100)
     * userId : BIGINT(20) <<FK, Users>>
     * isActive : BOOLEAN
 }
@@ -24,8 +26,9 @@ entity "Customers" as customer {
 entity "Restaurants" as resto {
     * **restaurantId** : BIGINT(20) <<PK, AUTO_INCREMENT>>
     --
-    * name : VARCHAR(45)
-    * address : VARCHAR(100)
+    * restaurantName : VARCHAR(45)
+    * address1 : VARCHAR(100)
+    * address2 : VARCHAR(100)
     * ownerId : BIGINT(20) <<FK, Users>>
     * isActive : BOOLEAN
 }
