@@ -8,6 +8,8 @@ A Spring Boot REST API for browsing restaurants, placing food orders, and tracki
 - **MenuItem:** id, restaurantId(FK -> Restaurant), name, description, price, isAvailable
 - **Order:** id, customerId(FK -> User), restaurantId(FK -> Restaurant), status, totalAmount, createdAt
 - **OrderItem:** id, orderId(FK -> Order), menuItemId(FK -> MenuItem), quantity, priceAtOrderTime
+- **Cart:** id, customerId(FK -> User), restaurantId(FK -> Restaurant), status, totalAmount
+- **CartItem:** id, cartId(FK -> Order), menuItemId(FK -> MenuItem), quantity, priceAtOrderTime
 
 (priceAtOrderTime is stored on the OrderItem, not read live from MenuItem, so past orders keep their original price even if the menu changes later.)
 

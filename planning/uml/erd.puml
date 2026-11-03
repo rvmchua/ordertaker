@@ -59,6 +59,25 @@ entity "OrderItems" as item {
     * priceAtOrderTime : DECIMAL(15,2)
 }
 
+entity "Carts" as cart {
+    * **orderId** : BIGINT(20) <<PK, AUTO_INCREMENT>>
+    --
+    * customerId : BIGINT(20) <<FK, Customers>>
+    * restaurantId : BIGINT(20) <<FK, Restaurants>>
+    * status : VARCHAR(20)
+    * totalAmount : DECIMAL(15,2)
+    * createdAt : DATETIME
+}
+
+entity "CartItems" as cartitem {
+    * **cartItemId** : BIGINT(20) <<PK, AUTO_INCREMENT>>
+    --
+    * cartId : BIGINT(20) <<FK, Orders>>
+    * menuItemId : BIGINT(20) <<FK, MenuItems>>
+    * quantity : INT(3)
+    * priceAtOrderTime : DECIMAL(15,2)
+}
+
 user ||--o|resto
 user ||--o| customer
 resto ||--o{ menu
@@ -66,5 +85,9 @@ customer ||--o{ order
 resto ||--o{ order
 order ||--{ item
 menu ||--o{ item
+customer ||--o| cart
+resto ||--o{ cart
+cart ||--o{ cartitem
+menu ||--o{ cartitem
 
 @enduml
