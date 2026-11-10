@@ -3,6 +3,9 @@ package com.rvmc.ordertaker.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "customers")
 @Getter
@@ -22,4 +25,10 @@ public class Customer{
     @JoinColumn(name = "user_id", unique = true, nullable = false)
     private User user;
     private Boolean isActive;
+
+    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
+    private List<Order> orderList = new ArrayList<>();
+
+    @OneToOne(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Cart activeCart;
 }
