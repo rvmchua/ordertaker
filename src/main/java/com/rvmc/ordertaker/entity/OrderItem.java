@@ -19,7 +19,12 @@ public class OrderItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long orderItemId;
 
+    @ManyToOne
+    @JoinColumn(name = "order_id", nullable = false, unique = true)
     private Order order;
+
+    @ManyToOne
+    @JoinColumn(name = "menu_item_id", nullable = false, unique = true)
     private MenuItem menuItem;
 
     private Short quantity;
