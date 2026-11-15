@@ -25,8 +25,8 @@ public class Cart {
     @JoinColumn(name = "customer_id", unique = true, nullable = false)
     private Customer customer;
 
-    @OneToOne
-    @JoinColumn(name = "restaurant_id", unique = true, nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "restaurant_id", nullable = false)
     private Restaurant restaurant;
 
     private BigDecimal totalAmount;

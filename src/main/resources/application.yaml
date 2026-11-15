@@ -1,3 +1,7 @@
 spring:
   application:
     name: ordertaker
+  datasource:
+    url: ${POSTGRES_URL}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASS}
