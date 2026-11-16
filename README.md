@@ -4,11 +4,12 @@ A Spring Boot backend for a food ordering platform connecting customers and rest
 
 ## Table of Contents
 - [Overview](#overview)
+- [What’s Implemented](#whats-implemented)
 - [Tech Stack](#tech-stack)
 - [Data Model](#data-model)
-- [Order Status Lifecycle](#order-status-lifecycle)
-- [API Structure](#api-structure)
-- [Implementation Roadmap](#implementation-roadmap)
+- [Planned Order Status Lifecycle](#planned-order-status-lifecycle)
+- [API Design and Current Implementation](#api-design-and-current-implementation)
+- [Next Steps](#next-steps)
 - [Getting Started](#getting-started)
 - [Future Enhancements](#future-enhancements)
 - [Author](#author)
@@ -17,32 +18,47 @@ A Spring Boot backend for a food ordering platform connecting customers and rest
 
 OrderTaker models the core flow of a food ordering platform: customers browse restaurants and menus, build a cart, place an order, and track it through to pickup, while restaurant owners manage their menu and fulfill incoming orders. Particular attention went into data integrity — soft-deletes that preserve order history, price snapshotting at checkout — and into modeling the order lifecycle as an explicit state machine rather than an open-ended status field.
 
+## What’s Implemented
+
+- Project scaffolded as a Java 21 / Spring Boot application using Maven.
+- Initial JPA entities and repositories for users, customers, restaurants, menu items, carts, and orders.
+- Request/response DTOs and MapStruct mappers for customer profiles, menu items, and orders.
+- Basic menu-item operations, including restaurant menu lookup and soft deletion.
+- Initial customer lookup and order endpoints, plus profile endpoint scaffolding.
+- Initial order creation with server-calculated totals, menu-item price snapshots, and checks for missing items and restaurant ownership.
+- An order status enum with sequential transitions and terminal `RECEIVED` and `CANCELLED` states.
+- A global exception handler with not-found, validation, and optimistic-locking responses.
+- Initial product scope, ERD, order lifecycle diagram, and endpoint contract in [`docs/`](./docs/).
+
+This is an in-progress backend, not yet a complete or secured ordering service. Cart workflows, authentication/authorization, full CRUD, and automated coverage of business rules remain to be implemented. See [Next Steps](#next-steps) for the current work list.
+
 ## Tech Stack
 
 - **Language:** Java
-- **Framework:** Spring Boot (Spring Web, Spring Data JPA, Spring Security)
-- **Auth:** JWT-based authentication, email + password login
-- **Database:** TBD between MySQL and PostgreSQL.
+- **Framework:** Spring Boot (Spring MVC and Spring Data JPA)
+- **API documentation:** Springdoc OpenAPI dependency is included; endpoint generation and UI still need to be verified.
+- **Auth:** JWT-based authentication is planned; authentication and authorization are not implemented yet.
+- **Database:** PostgreSQL connection settings are read from environment variables; Flyway applies the initial schema migration on startup.
 - **Build tool:** Maven
 
 ## Data Model
 
-Eight core entities: a `User` is either a `Customer` or a `Restaurant` owner via a shared, role-differentiated identity table; a `Restaurant` owns its `MenuItems`; a `Customer` has at most one active `Cart`, made up of `CartItems`; and a completed order becomes an `Order` with its own `OrderItems`, permanently decoupled from the live menu via a price snapshot.
+The model has a shared `User` identity with customer and restaurant profiles; a restaurant owns its menu items; a customer can have a cart made up of cart items; and an order contains order items with a price snapshot.
 
 | Entity | Role |
 |---|---|
 | `Users` | Shared identity table for both account types (email, password, role) |
-| `Customers` | Customer-specific profile data, linked 1:1 to a `User` |
-| `Restaurants` | Restaurant profile and business info, linked 1:1 to an owning `User` |
+| `Customers` | Customer-specific profile data, linked to a `User` |
+| `Restaurants` | Restaurant profile and business info, linked to an owning `User` |
 | `MenuItems` | A restaurant's menu, with independent availability and deletion flags |
 | `Carts` / `CartItems` | A customer's in-progress order — live pricing, not yet committed |
 | `Orders` / `OrderItems` | A committed order — snapshotted pricing (`priceAtOrderTime`), drives the status lifecycle below |
 
-Full entity-relationship diagram: [`erd.puml`](./erd.puml)
+Full entity-relationship diagram: [`ERD.puml`](./docs/uml/ERD.puml).
 
-## Order Status Lifecycle
+## Planned Order Status Lifecycle
 
-Order status is modeled as an explicit state machine rather than a free-form field, so invalid transitions — skipping steps, cancelling an already-picked-up order — are rejected rather than silently allowed.
+The intended pickup flow is documented as an explicit state machine. The enum currently supports sequential transitions and cancellation from any non-terminal state; role-specific permissions and timeout behavior are not implemented yet.
 
 ```mermaid
 stateDiagram-v2
@@ -62,79 +78,60 @@ stateDiagram-v2
     Cancelled --> [*]
 ```
 
-## API Structure
+## API Design and Current Implementation
 
-Four controllers, fully documented (methods, paths, auth, request/response shapes, status codes) — see the endpoint documentation for the complete spec.
+The endpoint document describes the planned API contract; it does not mean all of those endpoints exist yet. The code currently has customer and restaurant controllers:
 
 | Controller | Mapping | Handles |
 |---|---|---|
-| `AuthCustomerController` | `/auth` | Customer signup, login, logout |
-| `AuthRestaurantController` | `/auth/restaurants` | Restaurant owner signup, login, logout |
-| `CustomerController` | `/api/v1/customers` | Profile, cart, and order placement/tracking/cancellation |
-| `RestaurantController` | `/api/v1/restaurants` | Public restaurant/menu browsing, restaurant profile, menu management, incoming order fulfillment |
+| `CustomerController` | `/api/v1/customers` | Initial profile and order lookup/creation/cancellation endpoints |
+| `RestaurantController` | `/api/v1/restaurants` | Initial restaurant order-list endpoint |
 
-Notable decisions baked into the contract:
-- Cart is resolved from the JWT, not a path parameter — a customer has exactly one active cart, so there's nothing to look up by ID.
-- Menu items carry two independent flags: `isAvailable` (temporary, restaurant-toggleable) and `isDeleted` (permanent removal from active views, filtered out everywhere except order history, so past orders still display correctly).
-- Every state-changing status update returns `409 Conflict` on an invalid transition rather than silently accepting it.
+See the [endpoint contract](./docs/endpoint/Endpoint%20Documentation.pdf) for the planned routes and request/response details. Cart, authentication, and restaurant menu-management flows remain future implementation work.
 
-## Implementation Roadmap
+## Next Steps
 
-**Phase 0 — Planning & Design** ✅
-- [x] Scope, entities, roles, and core user flows locked
-- [x] Entity-relationship diagram
-- [x] Order status state machine
-- [x] Full REST API contract across all four controllers
-
-**Phase 1 — Core CRUD**
-- [ ] `User`, `Restaurant`, `MenuItem` entities + repositories
-- [ ] Service layer with real business rules (not pass-through) — e.g. prices can't be negative
-- [ ] Controllers returning DTOs, never raw entities, with correct HTTP status codes
-- [ ] Bean validation on inputs
-
-**Milestone:** Postman collection exercising full CRUD on all three resources.
-
-**Phase 2 — Cart & Order Placement**
-- [ ] `Cart`/`CartItem` entities, JWT-resolved, one active cart per customer
-- [ ] Restaurant-lock validation when adding items (reject cross-restaurant additions)
-- [ ] Checkout: cart-to-order conversion with server-side total calculation (never trust a client-sent total), availability re-check, price snapshot (`priceAtOrderTime`), single transaction, cart clearing
-
-**Milestone:** placing an order via the API produces a correct, persisted order with an accurate total.
-
-**Phase 3 — Order Status State Machine**
-- [ ] Status enum + service method enforcing valid transitions only — final flow is pickup-based: `Pending → Confirmed/Cancelled → Preparing → For_Pickup/Cancelled → Received`, not the delivery-based sketch from initial planning
-- [ ] Role-based transition rules (only the restaurant confirms/preps/tags for pickup; only the customer confirms handoff or cancels within allowed states)
-- [ ] 1-hour pickup timeout with automatic cancellation and customer ban
-
-**Milestone:** an illegal transition returns a clean 409, not a 500.
-
-**Phase 4 — JWT Authentication & Authorization** *(usually the most-scrutinized part of a junior Java portfolio project)*
-- [ ] Spring Security setup, BCrypt password hashing
-- [ ] JWT issued on login (email + password, not username)
-- [ ] Role-based endpoint access (`ROLE_CUSTOMER` / `ROLE_RESTAURANT` — confirm whether a separate admin role is still needed for the restaurant-deletion approval flow)
-- [ ] Token expiry/refresh strategy — not yet decided
-
-**Milestone:** every protected endpoint correctly rejects unauthenticated/unauthorized calls.
-
-**Phase 5 — Testing & Hardening** *(turns "runs on my machine" into something you can defend in an interview)*
-- [ ] Unit tests for service-layer rules (state transitions, total calculation, validation)
-- [ ] Integration tests (Testcontainers or in-memory DB) for main happy paths
-- [ ] Global exception handler (`@ControllerAdvice`) for consistent JSON errors, not stack traces
-- [ ] `docker-compose.yml` that boots the whole thing with one command
-
-**Milestone:** green test suite + one-command local boot.
-
-**Phase 6 — Docs, Polish & Deploy**
-- [x] README
-- [ ] OpenAPI/Swagger docs generated from the code
-- [ ] Deploy to Render's free web service tier (no card required; pair with an always-free DB like Supabase or Neon, since Render's free Postgres expires after 90 days)
-- [ ] Live URL confirmed working end-to-end
-
-**Milestone:** live URL + polished README.
+The prioritized implementation checklist and design concerns are maintained in [`docs/next-steps.md`](./docs/next-steps.md).
 
 ## Getting Started
 
-*To be added once Phase 1 is complete.*
+### Prerequisites
+
+- JDK 21
+- PostgreSQL 17 or newer
+
+### Configure PostgreSQL
+
+As a PostgreSQL administrator, create a local database named `ordertaker` and a login role that owns it. For a new local setup, open `psql -d postgres` and run:
+
+```sql
+CREATE ROLE ordertaker LOGIN;
+\password ordertaker
+CREATE DATABASE ordertaker OWNER ordertaker;
+```
+
+`\password` prompts for the role's password without placing it in shell history. If the role and database already exist, reuse them instead of recreating them.
+
+Set the connection values in the shell where Maven will run:
+
+```sh
+export POSTGRES_URL="jdbc:postgresql://localhost:5432/ordertaker"
+export POSTGRES_USER="ordertaker"
+read -r -s -p "PostgreSQL password: " POSTGRES_PASS
+printf '\n'
+export POSTGRES_PASS
+```
+
+In an IDE, configure the same three environment variables in the run configuration. Flyway applies the initial schema migration automatically on application startup.
+
+### Build and run
+
+```sh
+./mvnw -DskipTests package
+./mvnw spring-boot:run
+```
+
+The current `contextLoads` test still fails because `MenuItemRepository.findAllByIdAndIsDeleted` refers to an `id` property that `MenuItem` does not have. This startup blocker is tracked in [`docs/next-steps.md`](./docs/next-steps.md); the migration itself has been verified against a clean PostgreSQL 17 database.
 
 ## Future Enhancements
 
@@ -143,4 +140,4 @@ Notable decisions baked into the contract:
 ## Author
 
 **Royce Vincent Chua**
-rvmchua@gmail.com
+royce.chua@rvmchua.com
