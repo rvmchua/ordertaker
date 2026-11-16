@@ -64,9 +64,9 @@ public class OrderService {
                 .toList();
     }
 
-    public List<OrderResponse> getAllRestaurantOrders(Long customerId) {
-        Restaurant restaurant = restaurantRepository.findById(customerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
+    public List<OrderResponse> getAllRestaurantOrders(Long restaurantId) {
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", restaurantId));
         return orderRepository
                 .findAllByRestaurant(restaurant)
                 .stream()
