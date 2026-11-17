@@ -34,6 +34,7 @@ public class Cart {
     @CreationTimestamp
     private ZonedDateTime createdAt;
 
+    @Builder.Default
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL)
     private List<CartItem> cartItems = new ArrayList<>();
 }

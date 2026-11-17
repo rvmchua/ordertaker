@@ -26,6 +26,7 @@ public class Customer{
     private User user;
     private Boolean isActive;
 
+    @Builder.Default
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
     private List<Order> orderList = new ArrayList<>();
 

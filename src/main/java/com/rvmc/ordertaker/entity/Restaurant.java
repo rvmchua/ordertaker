@@ -32,12 +32,15 @@ public class Restaurant {
     @UpdateTimestamp
     private ZonedDateTime updatedAt;
 
+    @Builder.Default
     @OneToMany(mappedBy = "restaurant", cascade = CascadeType.ALL)
     private List<Order> orderList = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "restaurant", cascade = CascadeType.ALL)
     private List<MenuItem> menuItemList = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "restaurant", cascade = CascadeType.ALL)
     private List<Cart> cartList = new ArrayList<>();
 }

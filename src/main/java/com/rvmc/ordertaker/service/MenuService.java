@@ -4,6 +4,7 @@ import com.rvmc.ordertaker.dto.MenuItemRequest;
 import com.rvmc.ordertaker.dto.MenuItemResponse;
 import com.rvmc.ordertaker.entity.MenuItem;
 import com.rvmc.ordertaker.entity.Restaurant;
+import com.rvmc.ordertaker.exception.ResourceAlreadyTaggedAsDeletedException;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
 import com.rvmc.ordertaker.mapper.MenuItemMapper;
 import com.rvmc.ordertaker.repository.MenuItemRepository;
@@ -25,9 +26,9 @@ public class MenuService {
     private final RestaurantRepository restaurantRepository;
     private final MenuItemRepository menuItemRepository;
 
-/*
-*   Basic CRUD for menu items
-*/
+    /*
+     *   Basic CRUD for menu items
+     */
     public List<MenuItemResponse> getMenuFromRestaurant(Long restaurantId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
@@ -61,15 +62,28 @@ public class MenuService {
                 .orElseThrow(() -> new ResourceNotFoundException("Item", menuItemId));
         menuItemMapper.updateEntityFromRequest(request, existingItem);
         MenuItem updatedItem = menuItemRepository.save(existingItem);
-        
+
         return menuItemMapper.toResponse(updatedItem);
     }
 
     @Transactional
-    public void deleteMenuItem(Long menuItemId) {
+    public MenuItemResponse updateItemAvailability(Long menuItemId) {
+        MenuItem existingItem = menuItemRepository.findById(menuItemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Item", menuItemId));
+        existingItem.setIsAvailable(!existingItem.getIsAvailable());
+        MenuItem flippedAvailability = menuItemRepository.save(existingItem);
+
+        return menuItemMapper.toResponse(flippedAvailability);
+    }
+
+    @Transactional
+    public void deleteMenuItemSoft(Long menuItemId) {
         MenuItem item = menuItemRepository.findById(menuItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", menuItemId));
+        if (Boolean.TRUE.equals(item.getIsDeleted())) {
+            throw new ResourceAlreadyTaggedAsDeletedException(menuItemId, "Menu item");
+        }
         item.setIsDeleted(true);
-        MenuItem saved = menuItemRepository.save(item);
+        menuItemRepository.save(item);
     }
 }

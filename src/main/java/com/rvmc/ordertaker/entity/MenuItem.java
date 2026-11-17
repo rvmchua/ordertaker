@@ -29,9 +29,11 @@ public class MenuItem {
     private Boolean isAvailable;
     private Boolean isDeleted;
 
+    @Builder.Default
     @OneToMany(mappedBy = "menuItem", cascade = CascadeType.ALL)
     private List<CartItem> cartItems = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "menuItem", cascade = CascadeType.ALL)
     private List<OrderItem> orderItems = new ArrayList<>();
 }
