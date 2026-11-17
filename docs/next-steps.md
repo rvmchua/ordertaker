@@ -1,57 +1,105 @@
-# Next Steps and Open Concerns
+# OrderTaker MVP Roadmap
 
-This checklist reflects the current repository state. The endpoint PDF, diagrams, and scope document describe intended behavior; they are not proof that the corresponding code is complete.
+## MVP target
 
-## 1. Make the project build and test reliably
+Deliver one coherent, deployable food-ordering API with:
 
-- [x] Run Maven with a JDK that supports the configured Java 21 release. Maven compilation now succeeds with the installed Java 21 JDK; this also exposed and fixed a missing Lombok all-arguments constructor on `CartItem`. VS Code's shell defaults to the system Java 25 runtime, so select a JDK 21 runtime in VS Code or set `JAVA_HOME` to a JDK 21 before running Maven.
-- [x] Configure PostgreSQL connection properties through `POSTGRES_URL`, `POSTGRES_USER`, and `POSTGRES_PASS`; credentials are not stored in the repository.
-- [x] Add and verify the initial PostgreSQL Flyway migration against a clean PostgreSQL 17 database. Add future schema changes as new versioned migrations.
-- [x] Add a local setup guide with PostgreSQL environment variables and build/run instructions. Docker Compose remains optional.
+- Customer and restaurant-owner registration and authentication.
+- A restaurant menu that owners can manage and customers can browse.
+- A cart that supports adding, updating, and removing items.
+- Checkout from the cart with server-calculated totals and saved order prices.
+- Order status updates with rules for customer and restaurant actions.
+- PostgreSQL persistence, request validation, focused tests, API documentation, and setup instructions.
 
-## 2. Finish core service and API behavior
+Payments, real-time notifications, Android, microservices, event-driven infrastructure, and Kubernetes are outside the MVP.
 
-- [ ] Implement customer profile updates; `CustomerService.editProfile()` currently returns `null`.
-- [ ] Implement restaurant profile and menu-management services/endpoints; `RestaurantService` is empty.
-- [ ] Implement cart operations in `CartService`, including one active cart per customer, restaurant locking, and cart item validation.
-- [ ] Complete checkout as one transaction: re-check item availability, calculate totals on the server, snapshot prices, create the order, and clear the cart.
-- [ ] Add request validation for required fields, positive quantities, non-negative prices, and other domain constraints.
-- [ ] Return appropriate HTTP status codes and use consistent, documented endpoint paths and parameter sources. In particular, avoid relying on request bodies for GET requests.
-- [ ] Ensure controller routes describe the resource they return. The current restaurant route `GET /api/v1/restaurants/{restaurantId}` returns that restaurant's orders, despite looking like a restaurant resource lookup.
-- [ ] Ensure resource ownership is checked for order reads, updates, and cancellation; do not rely on caller-supplied customer or restaurant IDs as authorization.
-- [ ] Validate that requested menu items are available as well as not deleted, and handle duplicate menu-item IDs in order requests intentionally.
+## Definition of done
 
-## 3. Complete authentication and order authorization
+A feature is complete when its main request works end-to-end, invalid input has a deliberate response, important behavior has a focused test, and the API documentation is updated when the contract changes. Once those criteria are met, defer unrelated improvements to **Future enhancements**.
 
-- [ ] Add Spring Security configuration, password hashing (BCrypt), signup/login flows, and JWT validation.
-- [ ] Apply role and ownership checks to protected routes. Decide whether an admin role is required for the planned administrative actions.
-- [ ] Decide token expiry and refresh/revocation behavior.
-- [ ] Enforce order transitions by actor and state, including which states customers may cancel and which transitions restaurant owners may perform.
-- [ ] Decide whether to implement the one-hour pickup timeout and customer ban in this version; if so, specify ban duration, recovery, and timeout scheduling behavior.
-- [ ] Reconcile the pickup state flow across the README, `OrderStatus`, and [scope.md](./scope/scope.md), which currently describes a delivery-based flow.
+## Current foundation
 
-## 4. Improve error handling and automated coverage
+- [x] Java 21 Spring Boot project with Maven.
+- [x] Initial JPA entities, repositories, DTOs, and mappers.
+- [x] PostgreSQL environment configuration and initial Flyway migration.
+- [x] Local build and database setup instructions.
+- [ ] Verify application startup and context tests against PostgreSQL.
 
-- [ ] Add focused service tests for order totals, price snapshots, missing/duplicate/unavailable menu items, ownership, and valid/invalid status transitions.
-- [ ] Add API/integration tests for the main customer and restaurant flows using a reproducible test database.
-- [ ] Fix the context-load failure caused by `MenuItemRepository.findAllByIdAndIsDeleted`; Spring Data reports that `MenuItem` has no `id` property.
-- [ ] Map invalid transitions and invalid domain inputs to deliberate client responses (for example, `409 Conflict` or `400 Bad Request`) instead of allowing uncaught exceptions to become server errors.
-- [ ] Expand the global exception handler to cover expected domain failures with a consistent error response.
-- [ ] Keep the existing optimistic-locking conflict response and test concurrent order updates.
+## Implementation slices
 
-## 5. Align documentation and release readiness
+Build and test the core workflows with seeded local/test customer and restaurant records. Do not expose the API outside a trusted local environment until the identity and access-control slice is complete.
 
-- [ ] Keep the endpoint contract and scope document aligned with the actual controllers, roles, and pickup lifecycle.
-- [ ] Verify the generated OpenAPI/Swagger UI and document its local URL.
-- [ ] Add setup, configuration, migration, and test instructions once they work from a clean checkout.
-- [ ] Choose a deployment target and database, configure production secrets safely, deploy, and verify key flows against the live service.
+### 1. Restaurant and menu catalog
 
-## Other concerns to decide
+- [x] Implement restaurant profile lookup and expose a GET endpoint.
+- [x] Expose the existing restaurant menu lookup through a GET endpoint.
+- [x] Add a menu-item creation endpoint with request validation.
+- [x] Add a menu-item update endpoint and test one successful update.
+- [x] Add a separate availability-toggle endpoint.
+- [x] Add a soft-delete endpoint and verify deleted items are hidden from active menus.
 
-- **Current test coverage:** the existing test only checks that the Spring application context loads; business behavior is not covered yet.
-- **IDE runtime mismatch:** IntelliJ uses the project JDK, while VS Code's shell defaults to Java 25. Prefer JDK 21 consistently for Maven and configure CI to use the same release.
-- **Current test blocker:** `contextLoads` fails while initializing `MenuItemRepository.findAllByIdAndIsDeleted`; the derived query refers to a nonexistent `MenuItem.id` property. Tests also require the PostgreSQL environment variables described in the README.
-- **Status transition mismatch:** `OrderStatus` permits cancellation from every non-terminal state, while the intended state diagram describes narrower cancellation rules and a timeout cancellation.
-- **Database migration strategy:** the initial Flyway migration is now the schema source of truth; keep future entity changes paired with new migrations and clean-database verification.
-- **API contract drift:** the README previously described four controllers, including authentication controllers that are not present in the source yet. Keep planned endpoints clearly labeled until implemented.
-- **Security boundary:** JWT-related dependencies alone do not secure endpoints. Authentication, authorization, ownership validation, secret management, and token lifecycle all still need implementation.
+### 2. Customer cart
+
+- [ ] Add a repository query to load the customer's cart.
+- [ ] Implement retrieving or creating one active cart for a customer.
+- [ ] Add one menu item to a cart; reject an item from another restaurant.
+- [ ] Update a cart item's quantity; reject zero or negative quantities.
+- [ ] Remove a cart item and test the missing-item response.
+- [ ] Verify the customer cannot create a second active cart.
+
+### 3. Checkout from cart
+
+- [ ] Reject checkout when the cart is empty.
+- [ ] Recheck that every cart item is still available.
+- [ ] Calculate the total from current database prices.
+- [ ] Save each item's checkout price as `priceAtOrderTime`.
+- [ ] Persist the order and order items in one transaction.
+- [ ] Clear the cart only after a successful order save.
+- [ ] Test that failed checkout leaves the cart unchanged.
+- [ ] Return the created order response and verify it in an API integration test.
+
+### 4. Order processing
+
+- [ ] Define and test the allowed `OrderStatus` transitions.
+- [ ] Define which states permit customer cancellation and restaurant status updates.
+- [ ] Return `409 Conflict` for an invalid transition.
+- [ ] Test one successful and one rejected status update through the API using seeded records.
+
+### 5. Identity and access control
+
+- [ ] Add Spring Security and a minimal stateless API configuration.
+- [ ] Add BCrypt password encoding and a focused password-encoding test.
+- [ ] Implement customer registration and reject duplicate email addresses.
+- [ ] Implement restaurant-owner registration with the restaurant role.
+- [ ] Implement email/password login and return a signed JWT.
+- [ ] Validate bearer tokens on protected requests.
+- [ ] Derive the acting customer or restaurant from the authenticated principal, not request IDs.
+- [ ] Restrict menu changes to the owning restaurant.
+- [ ] Restrict cart and order access to their owning customer; restrict restaurant order updates to the owning restaurant.
+- [ ] Add tests proving unauthenticated requests are rejected and cross-owner access is denied.
+
+### 6. Release readiness
+
+- [ ] Map invalid request data to `400 Bad Request` with a consistent JSON body.
+- [ ] Verify the OpenAPI UI and document its local URL.
+- [ ] Align the endpoint contract and [scope.md](./scope/scope.md) with the pickup workflow.
+- [ ] Follow the setup instructions from a clean checkout.
+- [ ] Add a Java 21 CI build that runs the tests.
+- [ ] Confirm authentication and ownership checks are in place before exposing the API beyond a trusted local environment.
+- [ ] Choose a deployment target and configure production secrets outside the repository.
+- [ ] Deploy and verify the health endpoint.
+- [ ] Smoke-test registration, menu browsing, checkout, and order status on the deployed API.
+
+## Decisions to finalize
+
+- Whether restaurant deletion needs an admin role.
+- JWT expiration; defer token refresh/revocation unless needed for the MVP.
+- Whether a pickup timeout and customer ban are in scope; default to deferring them.
+- Which order states allow customer cancellation and restaurant updates.
+
+## Future enhancements
+
+- Pickup timeout scheduling and customer-ban policy.
+- Token refresh/revocation and administrative workflows.
+- Payment processing, notifications, and an Android client.
+- Infrastructure beyond a single deployable service.

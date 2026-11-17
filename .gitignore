@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Local-only personal planning
+/docs/personal-productivity-guidance.md
