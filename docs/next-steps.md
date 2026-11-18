@@ -40,15 +40,17 @@ Build and test the core workflows with seeded local/test customer and restaurant
 
 ### 2. Customer cart
 
-- [ ] Add a repository query to load the customer's cart.
-- [ ] Implement retrieving or creating one active cart for a customer.
-- [ ] Add one menu item to a cart; reject an item from another restaurant.
-- [ ] Update a cart item's quantity; reject zero or negative quantities.
-- [ ] Remove a cart item and test the missing-item response.
-- [ ] Verify the customer cannot create a second active cart.
+- [x] Add repository queries to find and check for a customer's active cart.
+- [x] Implement active-cart retrieval and creation with menu-item/restaurant validation.
+- [x] Implement replacing the active cart's item list, including clearing it with an empty list.
+- [ ] Expose cart retrieval, creation, and update through controller routes with request validation.
+- [ ] Add cart service tests for missing customer/cart, restaurant mismatch, duplicate quantities, overflow, and clearing.
+- [ ] Verify the customer cannot create a second active cart with a test.
+- [ ] Add item-level add/update/remove operations and test missing-item behavior if those operations remain part of the desired API.
 
 ### 3. Checkout from cart
 
+- [ ] Implement checkout from the active cart; the current order endpoint still creates orders directly from request item IDs.
 - [ ] Reject checkout when the cart is empty.
 - [ ] Recheck that every cart item is still available.
 - [ ] Calculate the total from current database prices.

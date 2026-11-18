@@ -1,6 +1,6 @@
 # OrderTaker — Food Ordering REST API
 
-A Spring Boot backend for a food ordering platform connecting customers and restaurants, built as a portfolio project to demonstrate backend API design, relational data modeling, and secure REST API development.
+A Spring Boot backend for a food ordering platform connecting customers and restaurants, built as a portfolio project to demonstrate REST API design, relational data modeling, and order-processing fundamentals. Authentication and authorization are not implemented yet.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -16,30 +16,33 @@ A Spring Boot backend for a food ordering platform connecting customers and rest
 
 ## Overview
 
-OrderTaker models the core flow of a food ordering platform: customers browse restaurants and menus, build a cart, place an order, and track it through to pickup, while restaurant owners manage their menu and fulfill incoming orders. Particular attention went into data integrity — soft-deletes that preserve order history, price snapshotting at checkout — and into modeling the order lifecycle as an explicit state machine rather than an open-ended status field.
+OrderTaker is an in-progress food-ordering API. The current implementation supports restaurant lookup, menu-item management, customer profile lookup, and direct order creation and status updates. Cart checkout and authenticated customer/restaurant workflows are not implemented. Menu items use soft deletion, orders snapshot item prices, and order statuses have sequential transition rules.
 
 ## What’s Implemented
 
 - Project scaffolded as a Java 21 / Spring Boot application using Maven.
 - Initial JPA entities and repositories for users, customers, restaurants, menu items, carts, and orders.
-- Request/response DTOs and MapStruct mappers for customer profiles, menu items, and orders.
-- Basic menu-item operations, including restaurant menu lookup and soft deletion.
-- Initial customer lookup and order endpoints, plus profile endpoint scaffolding.
-- Initial order creation with server-calculated totals, menu-item price snapshots, and checks for missing items and restaurant ownership.
+- Restaurant listing, name search, and profile lookup.
+- Menu-item creation, update, availability toggle, and soft deletion.
+- Customer profile lookup and initial order lookup, creation, and cancellation endpoints.
+- Cart service operations for creating, retrieving, and replacing a customer's active cart; these are not exposed through HTTP routes yet.
+- Direct order creation with server-calculated totals, item price snapshots, and checks for missing items and restaurant ownership.
 - An order status enum with sequential transitions and terminal `RECEIVED` and `CANCELLED` states.
-- A global exception handler with not-found, validation, and optimistic-locking responses.
+- A global exception handler for not-found, invalid arguments, already-deleted, terminal-order, validation, and optimistic-locking errors.
 - Initial product scope, ERD, order lifecycle diagram, and endpoint contract in [`docs/`](./docs/).
 
-This is an in-progress backend, not yet a complete or secured ordering service. Cart workflows, authentication/authorization, full CRUD, and automated coverage of business rules remain to be implemented. See [Next Steps](#next-steps) for the current work list.
+This is not yet a complete or secured ordering service. Cart HTTP endpoints and checkout, authentication/authorization, menu browsing over HTTP, and cart-specific automated coverage remain incomplete. See [Next Steps](#next-steps) for the prioritized work list.
 
 ## Tech Stack
 
-- **Language:** Java
-- **Framework:** Spring Boot (Spring MVC and Spring Data JPA)
+- **Language:** Java 21
+- **Framework:** Spring Boot 4.1.1 (Spring MVC and Spring Data JPA)
+- **Mapping:** MapStruct 1.6.3; Lombok
 - **API documentation:** Springdoc OpenAPI dependency is included; endpoint generation and UI still need to be verified.
-- **Auth:** JWT-based authentication is planned; authentication and authorization are not implemented yet.
+- **Auth:** JJWT 0.13.0 libraries are included, but authentication and authorization are not yet implemented.
 - **Database:** PostgreSQL connection settings are read from environment variables; Flyway applies the initial schema migration on startup.
 - **Build tool:** Maven
+- **Tests:** JUnit Jupiter and Mockito
 
 ## Data Model
 
@@ -80,14 +83,27 @@ stateDiagram-v2
 
 ## API Design and Current Implementation
 
-The endpoint document describes the planned API contract; it does not mean all of those endpoints exist yet. The code currently has customer and restaurant controllers:
+The endpoint document describes a planned contract; it does not mean all documented endpoints exist. The currently mapped routes are:
 
-| Controller | Mapping | Handles |
+| Method | Route | Behavior |
 |---|---|---|
-| `CustomerController` | `/api/v1/customers` | Initial profile and order lookup/creation/cancellation endpoints |
-| `RestaurantController` | `/api/v1/restaurants` | Initial restaurant order-list endpoint |
+| `GET` | `/api/v1/restaurants` | List restaurants; optional `?restaurant=` name search |
+| `GET` | `/api/v1/restaurants/{restaurantId}` | Get a restaurant profile |
+| `GET` | `/api/v1/restaurants/order/{restaurantId}` | List restaurant orders |
+| `POST` | `/api/v1/restaurants/menu` | Create a menu item |
+| `PUT` | `/api/v1/restaurants/menu/{menuItemId}` | Update a menu item |
+| `PATCH` | `/api/v1/restaurants/menu/{menuItemId}` | Toggle availability |
+| `DELETE` | `/api/v1/restaurants/menu/{menuItemId}` | Soft-delete a menu item |
+| `GET` | `/api/v1/customers/profile?customerId={id}` | Get a customer profile |
+| `PATCH` | `/api/v1/customers/profile` | Profile edit route is present but its service is unimplemented |
+| `GET` | `/api/v1/customers/order` | List customer orders; currently reads the customer ID from the request body |
+| `GET` | `/api/v1/customers/order/{orderId}` | Get a customer order; currently reads the customer ID from the request body |
+| `POST` | `/api/v1/customers/order` | Create an order directly from item IDs and quantities |
+| `PATCH` | `/api/v1/customers/order/{orderId}` | Request cancellation |
 
-See the [endpoint contract](./docs/endpoint/Endpoint%20Documentation.pdf) for the planned routes and request/response details. Cart, authentication, and restaurant menu-management flows remain future implementation work.
+`MenuService` has menu lookup methods, but there is currently no HTTP route to retrieve a restaurant's menu. `CartService` supports cart retrieval, creation, and full item-list replacement, but there are no cart controller routes. Authentication routes are also absent.
+
+See the [endpoint contract](./docs/endpoint/Endpoint%20Documentation.pdf) for the planned routes and request/response details. Cart workflows, authentication, and customer-facing menu browsing remain future implementation work.
 
 ## Next Steps
 
@@ -99,6 +115,7 @@ The prioritized implementation checklist and design concerns are maintained in [
 
 - JDK 21
 - PostgreSQL 17 or newer
+- Maven wrapper (included)
 
 ### Configure PostgreSQL
 
@@ -126,12 +143,20 @@ In an IDE, configure the same three environment variables in the run configurati
 
 ### Build and run
 
+Ensure Maven uses a JDK 21 installation (including `javac`); selecting only a JRE or using a Java executable without its matching compiler can fail compilation.
+
 ```sh
 ./mvnw -DskipTests package
 ./mvnw spring-boot:run
 ```
 
-The current `contextLoads` test still fails because `MenuItemRepository.findAllByIdAndIsDeleted` refers to an `id` property that `MenuItem` does not have. This startup blocker is tracked in [`docs/next-steps.md`](./docs/next-steps.md); the migration itself has been verified against a clean PostgreSQL 17 database.
+### Tests
+
+```sh
+./mvnw test
+```
+
+The unit tests use JUnit and Mockito. The `contextLoads` test starts the application context and therefore also needs the PostgreSQL environment variables above and a reachable database. Order-service unit tests cover order creation, lookup, and status updates; cart service tests and API integration tests have not been added yet. See [`docs/next-steps.md`](./docs/next-steps.md).
 
 ## Future Enhancements
 

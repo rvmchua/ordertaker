@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 
-OrderTaker is an in-progress Java REST API for a local food-ordering and restaurant pickup workflow. The implemented foundation covers restaurant lookup, menu-item CRUD/soft-delete behavior, customer profile lookup scaffolding, and direct order creation/status/listing operations. Authentication, authorization, the cart workflow, complete profile editing, and controller coverage for menu browsing are still incomplete.
+OrderTaker is an in-progress Java REST API for a local food-ordering and restaurant pickup workflow. The implemented foundation covers restaurant lookup, menu-item CRUD/soft-delete behavior, customer profile lookup, direct order creation/status/listing, and service-level active-cart creation/retrieval/replacement. Authentication, authorization, cart HTTP endpoints and checkout, complete profile editing, and controller coverage for menu browsing are still incomplete.
 
 The project is intended to demonstrate:
 
@@ -123,23 +123,25 @@ There is no controller route that currently exposes `MenuService.getMenuFromRest
   - `editProfile(...)` is currently `return null`.
 - `OrderService`
   - Loads customer/restaurant orders.
-  - Creates orders and calculates totals.
-  - Validates requested menu-item IDs and restaurant ownership.
+  - Creates orders and delegates total calculation and price snapshots to `Order.create(...)`.
+  - Loads distinct requested menu-item IDs and validates existence and restaurant ownership.
   - Updates status through the entity transition rules.
 - `CartService`
-  - Present but empty; no repository or implemented methods.
+  - Retrieves a customer's active cart.
+  - Creates an active cart from a non-empty item list, merging duplicate menu-item IDs and validating quantities and restaurant ownership.
+  - Replaces the active cart's item list; an empty list clears it, and changing the cart's restaurant is rejected.
+  - Has no controller routes or service tests yet; checkout is not implemented.
 
 ### Repositories
 
 - `CustomerRepository`: standard `JpaRepository<Customer, Long>`.
 - `UserRepository`: standard `JpaRepository<User, Long>`.
 - `RestaurantRepository`: name contains-ignore-case search.
-- `MenuItemRepository`: active/deleted queries, menu lookup, and a derived bulk-ID query.
+- `MenuItemRepository`: active/deleted queries, menu lookup, and a derived bulk lookup by `menuItemId`.
+- `CartRepository`: find/check active carts by customer.
 - `OrderRepository`: customer/restaurant/order-status and collection queries.
 
-Notable repository bug: `MenuItemRepository.findAllByIdAndIsDeleted(...)` uses `findAllById`, but `MenuItem` has `menuItemId`, not `id`. Spring Data cannot derive the property `id`, so repository startup/processing is a known blocker and is used by `OrderService.createOrder(...)`.
-
-No `CartRepository` or `CartItemRepository` exists.
+`MenuItemRepository.findAllByMenuItemIdInAndIsDeleted(...)` is used by both order and cart creation/update. There is no `CartItemRepository`; cart items are managed through the `Cart` aggregate.
 
 ### Entities and relationships
 
@@ -149,6 +151,7 @@ No `CartRepository` or `CartItemRepository` exists.
 - `MenuItem` belongs to one `Restaurant` and has cart-item and order-item lists.
 - `Cart` belongs to one `Customer` and one `Restaurant` and has many `CartItem`s.
 - `CartItem` belongs to one `Cart` and one `MenuItem`.
+- Active-cart state is stored in `Cart.isActive`; `Cart.replaceCartItems(...)` maintains both sides of the relationship, and orphan removal deletes replaced cart-item rows.
 - `Order` belongs to one `Customer` and one `Restaurant`, has a status and version, and contains many `OrderItem`s.
 - `OrderItem` belongs to one `Order` and one `MenuItem`, with quantity and `priceAtOrderTime`.
 
@@ -160,6 +163,7 @@ No `CartRepository` or `CartItemRepository` exists.
 - `OrderRequest/OrderResponse`
 - `OrderItemRequest/OrderItemResponse`
 - `UpdateOrderStatus`
+- `CreateCartRequest`, `UpdateCartRequest`, `CartItemRequest`, `CartItemUpdateRequest`, `CartResponse`, and `CartItemResponse`
 
 MapStruct interfaces:
 
@@ -167,6 +171,7 @@ MapStruct interfaces:
 - `RestaurantMapper.toRestaurantProfileResponse(...)`
 - `MenuItemMapper.fromRequestToEntity(...)`, `toResponse(...)`, and `updateEntityFromRequest(...)`
 - `OrderMapper.toResponse(...)`
+- `CartMapper.toResponse(...)`
 
 `MenuItemMapper` forces new items to `isAvailable=true` and `isDeleted=false`, ignores ID/restaurant for updates, and ignores null request properties during partial mapping.
 
@@ -178,15 +183,19 @@ Validation is provided by Jakarta Bean Validation:
 - Order customer/restaurant IDs and order item list are required.
 - The item list must be nonempty and nested items are validated.
 - Quantity must be at least 1.
+- Cart creation requires customer/restaurant IDs and a non-empty list with non-null items; cart updates require a customer ID and a non-null item list, while an empty list clears the cart.
+- `CartService` validates positive quantities, merges duplicate menu-item IDs with overflow checks, and verifies that all requested active menu items belong to the cart's restaurant.
 
 `@RestControllerAdvice` handles:
 
 - `ResourceNotFoundException` -> 404 with `{"error":"..."}`.
 - `ResourceAlreadyTaggedAsDeletedException` -> 409.
+- `OrderTaggedAsReceivedOrCancelledException` -> 409.
+- `IllegalArgumentException` -> 400 with `{"error":"..."}`.
 - `MethodArgumentNotValidException` -> 400 field/message map.
 - `ObjectOptimisticLockingFailureException` -> 409 text response.
 
-`IllegalArgumentException`, `IllegalStateException`, and the cancellation guard's plain `RuntimeException` are not mapped by the global handler.
+`IllegalStateException` and the cancellation guard's plain `RuntimeException` are not mapped by the global handler.
 
 ## 4. Application Data Flow
 
@@ -204,13 +213,22 @@ Validation is provided by Jakarta Bean Validation:
 1. `POST /api/v1/customers/order` binds `OrderRequest`.
 2. `CustomerController.createOrder(...)` calls `OrderService.createOrder(...)`.
 3. The service derives menu-item IDs from `OrderItemRequest`.
-4. It calls the menu-item repository and validates result count, IDs, availability/deletion filtering, and restaurant ownership.
+4. It calls the menu-item repository and validates result count, IDs, non-deleted state, and restaurant ownership.
 5. It loads the restaurant and customer.
 6. `Order.create(...)` sets status to `PENDING`, builds `OrderItem` rows, snapshots each current menu price, and calculates the total.
 7. `OrderMapper` maps the saved order to `OrderResponse`.
 8. `OrderRepository.save(...)` persists the aggregate; cascade behavior persists order items.
 
-The method is transactional, but cart checkout, inventory recheck, cart clearing, and rollback assertions are not implemented.
+The method saves the order aggregate, but cart checkout, inventory recheck, cart clearing, and rollback assertions are not implemented.
+
+### Cart service operations
+
+1. `CartService.createActiveCart(...)` validates and merges request quantities, loads the customer and restaurant, and rejects an existing active cart.
+2. It loads non-deleted menu items and verifies all IDs and restaurant ownership.
+3. It builds `CartItem`s, associates them with a new active `Cart`, and saves the aggregate with cascade.
+4. `getActiveCart(...)` loads the customer's active cart; `updateActiveCart(...)` replaces its entire item collection and allows an empty list to clear it.
+
+These are service methods only; no cart HTTP endpoints or cart-to-order checkout flow exists yet.
 
 ### Order status update
 
@@ -224,7 +242,7 @@ The method is transactional, but cart checkout, inventory recheck, cart clearing
 
 ## 5. Database Structure
 
-Schema source: `src/main/resources/db/migration/V1__create_initial_schema.sql`.
+Schema source: `src/main/resources/db/migration/V1__create_initial_schema.sql` and subsequent versioned migrations.
 
 | Table | Primary key | Important foreign keys / constraints |
 |---|---|---|
@@ -247,8 +265,9 @@ Important constraints and behavior:
 - `order_items.price_at_order_time` stores the snapshot, preserving historical prices.
 - `orders.version` supports optimistic locking.
 - `carts.total_amount`, `orders.total_amount`, and menu/order-item prices use `NUMERIC(38,2)`.
+- Migration V2 adds `carts.is_active` and renames `cart_items.menu_id` to `menu_item_id` to match the entity mappings.
 - No explicit check constraints enforce positive quantity, positive price, enum validity, or role validity.
-- No separate migration currently defines Cart or Order repositories beyond the initial schema.
+- Cart and order tables are created by the initial migration; later migrations keep evolving columns aligned with entity mappings.
 
 Flyway runs migrations automatically on Spring startup. Datasource values come from:
 
@@ -264,30 +283,31 @@ Flyway runs migrations automatically on Spring startup. Datasource values come f
 - Flyway initial PostgreSQL schema.
 - JPA entities and basic derived repositories.
 - MapStruct request/entity/response mapping for customers, restaurants, menu items, and orders.
-- Global exceptions for not found, already deleted, bean validation, and optimistic locking.
+- Cart request/response DTOs, mapping, repository queries, active-cart service operations, and a migration aligning cart columns with entity mappings.
+- Global exceptions for not found, invalid arguments, already deleted, terminal orders, bean validation, and optimistic locking.
 - Restaurant listing/search/by-ID.
 - Menu lookup service, menu creation/update/toggle/soft-delete.
 - Customer profile lookup.
 - Direct order creation with server-calculated totals and price snapshots.
 - Customer/restaurant order listing and customer/restaurant single-order lookup methods.
 - Order status transition validation and optimistic locking.
-- Unit tests for menu and restaurant services.
+- Unit tests for menu, restaurant, and order services.
 
 ### Incomplete or planned
 
 - `CustomerService.editProfile(...)` returns `null`.
-- `CartService` is empty.
-- No cart repository or cart-item repository.
-- No active-cart retrieval/creation and no cart add/update/remove endpoints.
+- `CartService` supports active-cart retrieval, creation, and full item-list replacement, but has no HTTP routes or tests.
+- No cart-item repository; cart items are managed through the cart aggregate.
+- No cart HTTP endpoints or item-specific add/update/remove operations.
 - No cart-to-order checkout flow.
 - No authentication, authorization, login/registration, password hashing, or JWT validation.
 - No menu browsing controller endpoint, despite `MenuService.getMenuFromRestaurant(...)`.
 - No public endpoint for `MenuService.getMenuItemById(...)`.
 - Customer and restaurant ownership is not derived from an authenticated principal.
 - Customer and restaurant controller payloads accept IDs directly instead of enforcing ownership.
-- The menu repository's `findAllByIdAndIsDeleted(...)` derived query is invalid and blocks order creation startup.
+- Cart request DTOs declare validation constraints, but no controller currently triggers request-body validation for them.
 - The state enum does not implement role-based permission rules or timeout behavior.
-- `IllegalArgumentException` and `IllegalStateException` have no explicit global HTTP mapping.
+- `IllegalStateException` has no explicit global HTTP mapping.
 - The customer cancellation guard throws plain `RuntimeException`; only cancellation is checked at controller level.
 - Endpoint coverage for menu and order state integration is not present.
 - The `contextLoads` test may require PostgreSQL because JPA/Flyway context startup is enabled.
@@ -337,18 +357,15 @@ Existing tests:
 
 - `src/test/java/com/rvmc/ordertaker/OrdertakerApplicationTests.java`: Spring context load smoke test.
 - `src/test/java/com/rvmc/ordertaker/service/MenuServiceTest.java`: Mockito unit tests for menu lookup/create/update/toggle/soft-delete.
+- `src/test/java/com/rvmc/ordertaker/service/OrderServiceTest.java`: Mockito unit tests for order lookup/creation/status updates.
 - `src/test/java/com/rvmc/ordertaker/service/RestaurantServiceTest.java`: Mockito unit tests for restaurant lookup, search, and listing.
 
-No existing tests cover controllers, order creation/status behavior, customer profile editing, carts, JWT/authentication, or Flyway migrations.
+No existing tests cover controllers, cart behavior, customer profile editing, JWT/authentication, or Flyway migrations.
 
-For Maven builds in the shell, select an installed JDK 21 and set `JAVA_HOME` and `PATH`
-before running the wrapper. The environment initially reported Java 25 but had no
-`javac` on `PATH`, so Maven could not compile the `java.version=21` target.
-
-With Java 21 explicitly selected, compilation succeeds and the two Mockito service
-test classes pass (20 tests). The Spring `contextLoads` test additionally requires
-`POSTGRES_URL`, `POSTGRES_USER`, and `POSTGRES_PASS` to refer to a reachable
-PostgreSQL database because JPA and Flyway start in the test application context.
+For Maven builds in the shell, use a JDK 21 installation (including `javac`) and set
+`JAVA_HOME` and `PATH` accordingly. The Spring `contextLoads` test additionally
+requires the PostgreSQL environment variables to refer to a reachable database
+because JPA and Flyway start in the test application context.
 
 ## 8. Navigation Reference
 
@@ -363,7 +380,7 @@ PostgreSQL database because JPA and Flyway start in the test application context
 | Add validation | Jakarta constraints in `dto/` records and `@Valid` parameters in `controller/` |
 | Handle exceptions | `exception/GlobalExceptionHandler.java` plus exception classes in `exception/` |
 | Add or change order status rules | `entity/enums/OrderStatus.java` and `service/OrderService.java` |
-| Add cart behavior | `entity/Cart.java`, `entity/CartItem.java`, add repositories and implement `service/CartService.java` |
+| Add cart behavior | `dto/Cart*.java`, `entity/Cart.java`, `entity/CartItem.java`, `repository/CartRepository.java`, `mapper/CartMapper.java`, and `service/CartService.java`; expose through a controller and add tests |
 | Change order creation/calculation | `service/OrderService.java`, `entity/Order.java`, `dto/OrderRequest.java`, `dto/OrderItemRequest.java` |
 | Change database schema | `src/main/resources/db/migration/` and matching JPA entities |
 | Add tests | `src/test/java/com/rvmc/ordertaker/service/MenuServiceTest.java`, `src/test/java/com/rvmc/ordertaker/service/RestaurantServiceTest.java`, `src/test/java/com/rvmc/ordertaker/OrdertakerApplicationTests.java` |
