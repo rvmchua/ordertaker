@@ -4,6 +4,7 @@ import com.rvmc.ordertaker.entity.MenuItem;
 import com.rvmc.ordertaker.entity.Restaurant;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,5 +13,5 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
 
     Optional<MenuItem> findByMenuItemIdAndIsDeleted(Long menuItemId, Boolean isDeleted);
 
-    List<MenuItem> findAllByIdAndIsDeleted(List<Long> menuItemIdList, Boolean isDeleted);
+    List<MenuItem> findAllByMenuItemIdInAndIsDeleted(Collection<Long> menuItemIdList, Boolean isDeleted);
 }

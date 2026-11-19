@@ -9,6 +9,7 @@ import com.rvmc.ordertaker.entity.MenuItem;
 import com.rvmc.ordertaker.entity.Order;
 import com.rvmc.ordertaker.entity.Restaurant;
 import com.rvmc.ordertaker.entity.enums.OrderStatus;
+import com.rvmc.ordertaker.exception.OrderTaggedAsReceivedOrCancelledException;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
 import com.rvmc.ordertaker.mapper.OrderMapper;
 import com.rvmc.ordertaker.repository.CustomerRepository;
@@ -16,9 +17,7 @@ import com.rvmc.ordertaker.repository.MenuItemRepository;
 import com.rvmc.ordertaker.repository.OrderRepository;
 import com.rvmc.ordertaker.repository.RestaurantRepository;
 import jakarta.transaction.Transactional;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -27,8 +26,6 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Getter
-@Setter
 public class OrderService {
     private final CustomerRepository customerRepository;
     private final MenuItemRepository menuItemRepository;
@@ -66,7 +63,7 @@ public class OrderService {
 
     public List<OrderResponse> getAllRestaurantOrders(Long restaurantId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer", restaurantId));
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
         return orderRepository
                 .findAllByRestaurant(restaurant)
                 .stream()
@@ -74,19 +71,18 @@ public class OrderService {
                 .toList();
     }
 
-    @Transactional
     public OrderResponse createOrder(OrderRequest request) {
-
-        List<Long> menuItemIdList = request
+        List<Long> distinctMenuItemIds = request
                 .orderItems()
                 .stream()
                 .map(OrderItemRequest::menuItemId)
+                .distinct()
                 .toList();
 
         List<MenuItem> menuItems = menuItemRepository
-                .findAllByIdAndIsDeleted(menuItemIdList, false);
+                .findAllByMenuItemIdInAndIsDeleted(distinctMenuItemIds, false);
 
-        validateOrderItems(menuItems, menuItemIdList, request);
+        validateOrderItems(menuItems, distinctMenuItemIds, request);
 
         Restaurant restaurant = restaurantRepository.findById(request.restaurantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", request.restaurantId()));
@@ -105,7 +101,7 @@ public class OrderService {
         }
 
         Order existingOrder = orderRepository.findByOrderIdAndStatusNotIn(orderId, List.of(OrderStatus.CANCELLED, OrderStatus.RECEIVED))
-                .orElseThrow(() -> new ResourceNotFoundException("Cannot update order that was already cancelled or received."));
+                .orElseThrow(() -> new OrderTaggedAsReceivedOrCancelledException("Cannot update order that was already cancelled or received."));
 
         // Validate the transition
         if (!existingOrder.getStatus().canTransitionTo(status.status())) {
@@ -122,29 +118,26 @@ public class OrderService {
      * Validation Helper Functions
      **/
 
-    private void validateOrderItems(List<MenuItem> menuItemList, List<Long> menuItemIds, OrderRequest request)  {
+    private void validateOrderItems(List<MenuItem> menuItemList, List<Long> distinctMenuItemIds, OrderRequest request) {
         Long restaurantId = request.restaurantId();
 
-//        Check if there are missing IDs not found
-        if (menuItemList.size() != request.orderItems().size()) {
+        if (menuItemList.size() != distinctMenuItemIds.size()) {
             Set<Long> foundIds = menuItemList.stream()
-                    .map(MenuItem::getMenuItemId).collect(Collectors.toSet());
+                    .map(MenuItem::getMenuItemId)
+                    .collect(Collectors.toSet());
 
-            List<Long> missingIds = menuItemIds.stream()
+            List<Long> missingIds = distinctMenuItemIds.stream()
                     .filter(id -> !foundIds.contains(id))
                     .toList();
 
             throw new ResourceNotFoundException("Menu items not found for IDs: " + missingIds);
         }
 
-//        Validate if restaurant has the item
         boolean invalidRestaurantItems = menuItemList.stream()
                 .anyMatch(item -> !item.getRestaurant().getRestaurantId().equals(restaurantId));
 
         if (invalidRestaurantItems) {
             throw new IllegalArgumentException("One or more menu items do not belong to this restaurant.");
         }
-
     }
-
 }
