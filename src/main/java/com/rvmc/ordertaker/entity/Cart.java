@@ -34,7 +34,32 @@ public class Cart {
     @CreationTimestamp
     private ZonedDateTime createdAt;
 
+    private Boolean isActive;
+
     @Builder.Default
-    @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CartItem> cartItems = new ArrayList<>();
+
+    public void addCartItem(CartItem cartItem) {
+        cartItems.add(cartItem);
+        cartItem.setCart(this);
+    }
+
+    public void replaceCartItems(List<CartItem> newItems) {
+        cartItems.clear();
+
+        for (CartItem item : newItems) {
+            addCartItem(item);
+        }
+    }
+
+    //    Domain factory method for creating Cart object from MenuItem list
+    public static Cart create(Restaurant restaurant, Customer customer) {
+        return Cart.builder()
+                .restaurant(restaurant)
+                .customer(customer)
+                .isActive(true)
+                .cartItems(new ArrayList<>())
+                .build();
+    }
 }
