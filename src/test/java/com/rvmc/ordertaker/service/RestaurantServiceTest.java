@@ -23,18 +23,15 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RestaurantServiceTest {
+    @Mock private RestaurantRepository restaurantRepository;
+    @Mock private RestaurantMapper restaurantMapper;
+    @InjectMocks private RestaurantService restaurantService;
 
-    @Mock
-    private RestaurantRepository restaurantRepository;
+    /*
+    * getRestaurantByQuery Tests
+    * */
 
-    @Mock
-    private RestaurantMapper restaurantMapper;
-
-    @InjectMocks
-    private RestaurantService restaurantService;
-
-    @Test
-    void getRestaurantByQuery_shouldReturnMappedDto_whenMatchingRestaurantsExist() {
+    @Test void getRestaurantByQuery_shouldReturnMappedDto_whenMatchingRestaurantsExist() {
 //        Arrange
         String query = "Italian";
         Restaurant mockRestaurant = Restaurant.builder()
@@ -75,8 +72,7 @@ class RestaurantServiceTest {
         verify(restaurantMapper, times(1)).toRestaurantProfileResponse(mockRestaurant);
     }
 
-    @Test
-    void getRestaurantByQuery_shouldReturnEmptyList_whenNoRestaurantsMatch() {
+    @Test void getRestaurantByQuery_shouldReturnEmptyList_whenNoRestaurantsMatch() {
 //        Arrange
         String query = "NonExistent";
 
@@ -94,8 +90,11 @@ class RestaurantServiceTest {
         verify(restaurantRepository, times(1)).findAllByRestaurantNameContainingIgnoreCase("NonExistent");
     }
 
-    @Test
-    void getAllRestaurants_shouldReturnMappedDto_whenRestaurantsExist() {
+    /*
+    * getAllRestaurants Tests
+    * */
+
+    @Test void getAllRestaurants_shouldReturnMappedDto_whenRestaurantsExist() {
 //        Arrange
         List<Restaurant> mockRestaurants = new ArrayList<>();
         mockRestaurants.add(Restaurant.builder()
@@ -149,8 +148,7 @@ class RestaurantServiceTest {
 
     }
 
-    @Test
-    void getAllRestaurants_shouldReturnEmptyList_whenNoRestaurantsExist() {
+    @Test void getAllRestaurants_shouldReturnEmptyList_whenNoRestaurantsExist() {
         // Arrange
         when(restaurantRepository.findAll()).thenReturn(Collections.emptyList());
 
@@ -167,8 +165,11 @@ class RestaurantServiceTest {
         verify(restaurantMapper, never()).toRestaurantProfileResponse(any());
     }
 
-    @Test
-    void getRestaurantById_shouldReturnMappedDto_whenRestaurantExist() {
+    /*
+    * getRestaurantById Tests
+    * */
+
+    @Test void getRestaurantById_shouldReturnMappedDto_whenRestaurantExist() {
 //        Arrange
         Long restaurantId = 1L;
         Restaurant mockRestaurant = Restaurant.builder()
@@ -205,8 +206,7 @@ class RestaurantServiceTest {
         verify(restaurantMapper, times(1)).toRestaurantProfileResponse(mockRestaurant);
     }
 
-    @Test
-    void getRestaurantById_shouldThrowResourceNotFoundException_whenRestaurantDoesNotExist() {
+    @Test void getRestaurantById_shouldThrowResourceNotFoundException_whenRestaurantDoesNotExist() {
 //        Arrange
         Long restaurantId = 99L;
 

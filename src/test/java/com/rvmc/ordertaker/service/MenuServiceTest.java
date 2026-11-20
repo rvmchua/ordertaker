@@ -24,20 +24,16 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class MenuServiceTest {
-    @Mock
-    private MenuItemMapper menuItemMapper;
+    @Mock private MenuItemMapper menuItemMapper;
+    @Mock private RestaurantRepository restaurantRepository;
+    @Mock private MenuItemRepository menuItemRepository;
+    @InjectMocks private MenuService menuService;
 
-    @Mock
-    private RestaurantRepository restaurantRepository;
+    /*
+    * createMenuItem Tests
+    * */
 
-    @Mock
-    private MenuItemRepository menuItemRepository;
-
-    @InjectMocks
-    private MenuService menuService;
-
-    @Test
-    void createMenuItem_shouldReturnSavedResponse_whenRestaurantExists() {
+    @Test void createMenuItem_shouldReturnSavedResponse_whenRestaurantExists() {
         // Arrange
         Long restaurantId = 1L;
         Long menuItemId = 10L;
@@ -88,8 +84,7 @@ class MenuServiceTest {
         verify(menuItemMapper, times(1)).toResponse(savedMenuItem);
     }
 
-    @Test
-    void createMenuItem_shouldThrowResourceNotFoundException_whenRestaurantDoesNotExist() {
+    @Test void createMenuItem_shouldThrowResourceNotFoundException_whenRestaurantDoesNotExist() {
         // Arrange
         Long restaurantId = 99L;
         MenuItemRequest request = new MenuItemRequest(
@@ -118,8 +113,11 @@ class MenuServiceTest {
         verify(menuItemMapper, never()).toResponse(any());
     }
 
-    @Test
-    void updateMenuItem_shouldUpdateAndReturnResponse_whenItemExists() {
+    /*
+    * updateMenuItem Tests
+    * */
+
+    @Test void updateMenuItem_shouldUpdateAndReturnResponse_whenItemExists() {
         // Arrange
         Long menuItemId = 1L;
         MenuItemRequest request = new MenuItemRequest(
@@ -176,8 +174,7 @@ class MenuServiceTest {
         verify(menuItemMapper, times(1)).toResponse(savedItem);
     }
 
-    @Test
-    void updateMenuItem_shouldThrowResourceNotFoundException_whenItemDoesNotExist() {
+    @Test void updateMenuItem_shouldThrowResourceNotFoundException_whenItemDoesNotExist() {
         // Arrange
         Long menuItemId = 99L;
         MenuItemRequest request = new MenuItemRequest(
@@ -206,8 +203,11 @@ class MenuServiceTest {
         verify(menuItemMapper, never()).toResponse(any());
     }
 
-    @Test
-    void updateItemAvailability_shouldToggleAvailabilityAndReturnResponse_whenItemExists() {
+    /*
+    * updateItemAvailability Tests
+    * */
+
+    @Test void updateItemAvailability_shouldToggleAvailabilityAndReturnResponse_whenItemExists() {
         // Arrange
         Long menuItemId = 1L;
         Restaurant mockRestaurant = Restaurant.builder().restaurantId(10L).build();
@@ -252,8 +252,7 @@ class MenuServiceTest {
         verify(menuItemMapper, times(1)).toResponse(savedItem);
     }
 
-    @Test
-    void updateItemAvailability_shouldThrowResourceNotFoundException_whenItemDoesNotExist() {
+    @Test void updateItemAvailability_shouldThrowResourceNotFoundException_whenItemDoesNotExist() {
         // Arrange
         Long menuItemId = 99L;
         when(menuItemRepository.findById(menuItemId)).thenReturn(Optional.empty());
@@ -272,8 +271,12 @@ class MenuServiceTest {
         verify(menuItemMapper, never()).toResponse(any());
     }
 
-    @Test
-    void deleteMenuItemSoft_shouldMarkDeleteAndReturnOk_whenItemExistsAndNotDeleted() {
+
+    /*
+    * deleteMenuItemSoft Tests
+    * */
+
+    @Test void deleteMenuItemSoft_shouldMarkDeleteAndReturnOk_whenItemExistsAndNotDeleted() {
 //        Arrange
         Long menuItemId = 1L;
         MenuItem existingItem = MenuItem.builder()
@@ -298,8 +301,7 @@ class MenuServiceTest {
         verify(menuItemRepository, times(1)).save(existingItem);
     }
 
-    @Test
-    void deleteMenuItemSoft_shouldThrowResourceAlreadyTaggedAsDeletedException_whenItemAlreadyDeleted() {
+    @Test void deleteMenuItemSoft_shouldThrowResourceAlreadyTaggedAsDeletedException_whenItemAlreadyDeleted() {
 //        Arrange
         Long menuItemId = 1L;
         MenuItem alreadyDeletedItem = MenuItem.builder()
@@ -328,8 +330,7 @@ class MenuServiceTest {
 
     }
 
-    @Test
-    void deleteMenuItemSoft_shouldThrowResourceNotFoundException_whenItemDoesNotExist() {
+    @Test void deleteMenuItemSoft_shouldThrowResourceNotFoundException_whenItemDoesNotExist() {
 //        Arrange
         Long menuItemId = 99L;
         when(menuItemRepository.findById(menuItemId)).thenReturn(Optional.empty());
@@ -345,8 +346,11 @@ class MenuServiceTest {
         verify(menuItemRepository, never()).save(any());
     }
 
-    @Test
-    void getMenuItemById_shouldReturnMappedResponse_whenMenuItemExistsAndNotTaggedAsDeleted() {
+    /*
+    * getMenuItemById Tests
+    * */
+
+    @Test void getMenuItemById_shouldReturnMappedResponse_whenMenuItemExistsAndNotTaggedAsDeleted() {
         // Arrange
         Long menuItemId = 1L;
         Restaurant mockRestaurant = Restaurant.builder()
@@ -393,8 +397,7 @@ class MenuServiceTest {
         verify(menuItemMapper, times(1)).toResponse(mockMenuItem);
     }
 
-    @Test
-    void getMenuItemById_shouldThrowResourceNotFoundException_whenItemDoesNotExistOrIsDeleted() {
+    @Test void getMenuItemById_shouldThrowResourceNotFoundException_whenItemDoesNotExistOrIsDeleted() {
         // Arrange
         Long menuItemId = 99L;
         when(menuItemRepository.findByMenuItemIdAndIsDeleted(menuItemId, false))
@@ -411,8 +414,11 @@ class MenuServiceTest {
         verify(menuItemMapper, never()).toResponse(any());
     }
 
-    @Test
-    void getMenuFromRestaurant_shouldReturnMappedMenuItems_whenRestaurantExistsAndHasActiveItems() {
+    /*
+    * getMenuFromRestaurant Tests
+    * */
+
+    @Test void getMenuFromRestaurant_shouldReturnMappedMenuItems_whenRestaurantExistsAndHasActiveItems() {
         // Arrange
         Long restaurantId = 1L;
         Restaurant restaurant = Restaurant.builder()
@@ -471,8 +477,7 @@ class MenuServiceTest {
         verify(menuItemMapper, times(1)).toResponse(item2);
     }
 
-    @Test
-    void getMenuFromRestaurant_shouldReturnEmptyList_whenRestaurantExistsWithNoActiveItems() {
+    @Test void getMenuFromRestaurant_shouldReturnEmptyList_whenRestaurantExistsWithNoActiveItems() {
         // Arrange
         Long restaurantId = 1L;
         Restaurant restaurant = Restaurant.builder()
@@ -497,8 +502,7 @@ class MenuServiceTest {
         verify(menuItemMapper, never()).toResponse(any());
     }
 
-    @Test
-    void getMenuFromRestaurant_shouldThrowResourceNotFoundException_whenRestaurantDoesNotExist() {
+    @Test void getMenuFromRestaurant_shouldThrowResourceNotFoundException_whenRestaurantDoesNotExist() {
         // Arrange
         Long restaurantId = 99L;
         when(restaurantRepository.findById(restaurantId)).thenReturn(Optional.empty());
