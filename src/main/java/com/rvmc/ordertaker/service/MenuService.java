@@ -10,16 +10,12 @@ import com.rvmc.ordertaker.mapper.MenuItemMapper;
 import com.rvmc.ordertaker.repository.MenuItemRepository;
 import com.rvmc.ordertaker.repository.RestaurantRepository;
 import jakarta.transaction.Transactional;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
-@Getter
-@Setter
 @RequiredArgsConstructor
 public class MenuService {
     private final MenuItemMapper menuItemMapper;
