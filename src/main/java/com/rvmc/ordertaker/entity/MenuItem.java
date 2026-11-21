@@ -26,8 +26,14 @@ public class MenuItem {
     private String itemName;
     private String description;
     private BigDecimal price;
-    private Boolean isAvailable;
-    private Boolean isDeleted;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean isAvailable = true;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean isDeleted = false;
 
     @Builder.Default
     @OneToMany(mappedBy = "menuItem", cascade = CascadeType.ALL)

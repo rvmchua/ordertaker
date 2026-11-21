@@ -1,28 +1,24 @@
 package com.rvmc.ordertaker.service;
 
-import com.rvmc.ordertaker.dto.OrderItemRequest;
-import com.rvmc.ordertaker.dto.OrderRequest;
 import com.rvmc.ordertaker.dto.OrderResponse;
 import com.rvmc.ordertaker.dto.UpdateOrderStatus;
+import com.rvmc.ordertaker.entity.Cart;
 import com.rvmc.ordertaker.entity.Customer;
-import com.rvmc.ordertaker.entity.MenuItem;
 import com.rvmc.ordertaker.entity.Order;
 import com.rvmc.ordertaker.entity.Restaurant;
 import com.rvmc.ordertaker.entity.enums.OrderStatus;
 import com.rvmc.ordertaker.exception.OrderTaggedAsReceivedOrCancelledException;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
 import com.rvmc.ordertaker.mapper.OrderMapper;
-import com.rvmc.ordertaker.repository.CustomerRepository;
-import com.rvmc.ordertaker.repository.MenuItemRepository;
-import com.rvmc.ordertaker.repository.OrderRepository;
-import com.rvmc.ordertaker.repository.RestaurantRepository;
+import com.rvmc.ordertaker.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +28,8 @@ public class OrderService {
     private final OrderMapper orderMapper;
     private final OrderRepository orderRepository;
     private final RestaurantRepository restaurantRepository;
+    private final CartRepository cartRepository;
+    private final CartService cartService;
 
     public OrderResponse getCustomerOrderById(Long orderId, Long customerId) {
         Customer customer = customerRepository.findById(customerId)
@@ -71,27 +69,31 @@ public class OrderService {
                 .toList();
     }
 
-    public OrderResponse createOrder(OrderRequest request) {
-        List<Long> distinctMenuItemIds = request
-                .orderItems()
-                .stream()
-                .map(OrderItemRequest::menuItemId)
-                .distinct()
-                .toList();
-
-        List<MenuItem> menuItems = menuItemRepository
-                .findAllByMenuItemIdInAndIsDeleted(distinctMenuItemIds, false);
-
-        validateOrderItems(menuItems, distinctMenuItemIds, request);
-
-        Restaurant restaurant = restaurantRepository.findById(request.restaurantId())
-                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", request.restaurantId()));
-        Customer customer = customerRepository.findById(request.customerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Customer", request.customerId()));
-
-        Order order = Order.create(restaurant, customer, menuItems, request);
-
-        return orderMapper.toResponse(orderRepository.save(order));
+    @Transactional
+    public OrderResponse createOrder(Long customerId) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
+        Cart activeCart = cartRepository.findByCustomerAndIsActive(customer, true)
+                        .orElseThrow(() -> new ResourceNotFoundException("No active cart found."));
+        if (activeCart.getCartItems() == null) {
+            throw new ResourceNotFoundException("Cart cannot be empty.");
+        }
+        Order order = Order.create(activeCart);
+        try {
+            Order savedOrder = orderRepository.save(order);
+            OrderResponse response = orderMapper.toResponse(savedOrder);
+            Cart deactivatedCart = cartService.deactivateCart(activeCart);
+            return response;
+        } catch (DataIntegrityViolationException ex) {
+            // e.g., unique constraint, foreign key constraint, or non-null column violation
+            throw new IllegalStateException("Order could not be saved due to a data constraint violation.", ex);
+        } catch (ObjectOptimisticLockingFailureException ex) {
+            // Concurrent modification conflict (e.g., 409 Conflict)
+            throw new IllegalStateException("Order state changed concurrently while saving.", ex);
+        } catch (DataAccessException ex) {
+            // Broader database/Spring Data failure
+            throw new IllegalStateException("Failed to save order due to a persistence error.", ex);
+        }
     }
 
     @Transactional
@@ -114,30 +116,4 @@ public class OrderService {
         return orderMapper.toResponse(savedOrder);
     }
 
-    /*
-     * Validation Helper Functions
-     **/
-
-    private void validateOrderItems(List<MenuItem> menuItemList, List<Long> distinctMenuItemIds, OrderRequest request) {
-        Long restaurantId = request.restaurantId();
-
-        if (menuItemList.size() != distinctMenuItemIds.size()) {
-            Set<Long> foundIds = menuItemList.stream()
-                    .map(MenuItem::getMenuItemId)
-                    .collect(Collectors.toSet());
-
-            List<Long> missingIds = distinctMenuItemIds.stream()
-                    .filter(id -> !foundIds.contains(id))
-                    .toList();
-
-            throw new ResourceNotFoundException("Menu items not found for IDs: " + missingIds);
-        }
-
-        boolean invalidRestaurantItems = menuItemList.stream()
-                .anyMatch(item -> !item.getRestaurant().getRestaurantId().equals(restaurantId));
-
-        if (invalidRestaurantItems) {
-            throw new IllegalArgumentException("One or more menu items do not belong to this restaurant.");
-        }
-    }
 }

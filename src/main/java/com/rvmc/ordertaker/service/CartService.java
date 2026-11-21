@@ -36,7 +36,7 @@ public class CartService {
 
     @Transactional
     public CartResponse createActiveCart(CreateCartRequest request) {
-        // 1. Validate and merge requested menu items
+        // Validate and merge requested menu items
         Map<Long, Integer> quantityByMenuItemId = normalizeQuantities(
                 request.cartItems(),
                 CartItemRequest::menuItemId,
@@ -44,30 +44,27 @@ public class CartService {
                 true
         );
 
-        // 2. Retrieve customer and restaurant
         Customer customer = customerRepository.findById(request.customerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", request.customerId()));
         Restaurant restaurant = restaurantRepository.findById(request.restaurantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", request.restaurantId()));
 
-        // 3. Prevent multiple active carts for the same customer
+        // Prevent multiple active carts for the same customer
         if (cartRepository.existsByCustomerAndIsActive(customer, true)) {
             throw new IllegalStateException("Customer already has an active cart.");
         }
 
-        // 4. Retrieve requested menu items
         List<Long> menuItemIds = List.copyOf(quantityByMenuItemId.keySet());
         List<MenuItem> menuItems = menuItemRepository
                 .findAllByMenuItemIdInAndIsDeleted(menuItemIds, false);
 
-        // 5. Validate menu items
+        // Validate menu items
         validateMenuItemsForRestaurant(
                 menuItems,
                 menuItemIds,
                 restaurant.getRestaurantId()
         );
 
-        // 6. Create a lookup map for menu items
         Map<Long, MenuItem> menuItemById = menuItems
                 .stream()
                 .collect(Collectors.toMap(
@@ -75,10 +72,7 @@ public class CartService {
                         Function.identity()
                 ));
 
-        // 7. Create cart
         Cart createdCart = Cart.create(restaurant, customer);
-
-        // 8. Create cart items using the merged quantities
         quantityByMenuItemId.forEach((menuItemId, quantity) -> {
             if (quantity > Short.MAX_VALUE) {
                 throw new IllegalArgumentException("Quantity exceeds the maximum allowed value.");
@@ -92,29 +86,26 @@ public class CartService {
             createdCart.addCartItem(cartItem);
         });
 
-        // 9. Save cart
         Cart savedCart = cartRepository.save(createdCart);
         return cartMapper.toResponse(savedCart);
     }
 
     @Transactional
     public CartResponse updateActiveCart(UpdateCartRequest request) {
-        // 1. Retrieve customer
         Customer customer = customerRepository.findById(request.customerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", request.customerId()));
 
-        // 2. Retrieve active cart
         Cart activeCart = cartRepository.findByCustomerAndIsActive(customer, true)
                 .orElseThrow(() -> new ResourceNotFoundException("No active cart found."));
 
-        // 3. Prevent changing restaurant
+        // Prevent changing restaurant
         Long activeRestaurantId = activeCart.getRestaurant().getRestaurantId();
 
         if (request.restaurantId() != null && !activeRestaurantId.equals(request.restaurantId())) {
             throw new IllegalArgumentException("Cannot change restaurant on an active cart.");
         }
 
-        // 4. Validate and merge requested menu items
+        // Validate and merge requested menu items
         // An empty list is allowed here to clear the cart.
         Map<Long, Integer> quantityByMenuItemId = normalizeQuantities(
                 request.cartItems(),
@@ -123,7 +114,7 @@ public class CartService {
                 false
         );
 
-        // 5. Retrieve menu items, if the request is not empty
+        // Retrieve menu items, if the request is not empty
         List<Long> menuItemIds = List.copyOf(quantityByMenuItemId.keySet());
         List<MenuItem> menuItems;
 
@@ -135,14 +126,13 @@ public class CartService {
             );
         }
 
-        // 6. Validate menu items against the active cart's restaurant
+        // Validate menu items against the active cart's restaurant
         validateMenuItemsForRestaurant(
                 menuItems,
                 menuItemIds,
                 activeRestaurantId
         );
 
-        // 7. Create a lookup map
         Map<Long, MenuItem> menuItemById = menuItems
                 .stream()
                 .collect(Collectors.toMap(
@@ -150,7 +140,6 @@ public class CartService {
                         Function.identity()
                 ));
 
-        // 8. Build replacement cart items
         List<CartItem> updatedCartItems = quantityByMenuItemId.entrySet()
                 .stream()
                 .map(entry -> CartItem.builder()
@@ -159,18 +148,16 @@ public class CartService {
                         .build())
                 .toList();
 
-        // 9. Replace existing cart items
+        // Replace existing cart items
         activeCart.replaceCartItems(updatedCartItems);
 
-        // 10. Save updated cart
         Cart savedCart = cartRepository.save(activeCart);
-
         return cartMapper.toResponse(savedCart);
     }
 
-    /*
-     * Validation Helper Functions
-     */
+    // -------------------------------------------------------------------------
+    // Validation
+    // -------------------------------------------------------------------------
 
     private <T> Map<Long, Integer> normalizeQuantities(
             List<T> items,
@@ -194,13 +181,23 @@ public class CartService {
             }
 
             Long menuItemId = menuItemIdExtractor.apply(item);
-            Integer quantity = (Integer) quantityExtractor.apply(item);
+            Number rawQuantity = quantityExtractor.apply(item);
 
             if (menuItemId == null) {
                 throw new IllegalArgumentException("Menu item ID cannot be null.");
             }
 
-            if (quantity == null || quantity <= 0) {
+            if (rawQuantity == null) {
+                throw new IllegalArgumentException("Quantity must be greater than zero.");
+            }
+
+            // Guard against values outside Integer range (e.g., if a Long > Integer.MAX_VALUE is ever passed)
+            if (rawQuantity.longValue() > Integer.MAX_VALUE || rawQuantity.longValue() < Integer.MIN_VALUE) {
+                throw new IllegalArgumentException("Combined item quantity exceeds the maximum supported value.");
+            }
+
+            int quantity = rawQuantity.intValue();
+            if (quantity <= 0) {
                 throw new IllegalArgumentException("Quantity must be greater than zero.");
             }
 
@@ -241,5 +238,11 @@ public class CartService {
         if (invalidRestaurantItems) {
             throw new IllegalArgumentException("One or more menu items do not belong to this restaurant.");
         }
+    }
+
+    @Transactional
+    public Cart deactivateCart(Cart activeCart) {
+        activeCart.setIsActive(false);
+        return cartRepository.save(activeCart);
     }
 }

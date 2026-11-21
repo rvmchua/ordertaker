@@ -1,26 +1,25 @@
 package com.rvmc.ordertaker.service;
 
-import com.rvmc.ordertaker.dto.OrderItemRequest;
-import com.rvmc.ordertaker.dto.OrderRequest;
 import com.rvmc.ordertaker.dto.OrderResponse;
 import com.rvmc.ordertaker.dto.UpdateOrderStatus;
-import com.rvmc.ordertaker.entity.Customer;
-import com.rvmc.ordertaker.entity.MenuItem;
-import com.rvmc.ordertaker.entity.Order;
-import com.rvmc.ordertaker.entity.Restaurant;
+import com.rvmc.ordertaker.entity.*;
 import com.rvmc.ordertaker.entity.enums.OrderStatus;
 import com.rvmc.ordertaker.exception.OrderTaggedAsReceivedOrCancelledException;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
 import com.rvmc.ordertaker.mapper.OrderMapper;
+import com.rvmc.ordertaker.repository.CartRepository;
 import com.rvmc.ordertaker.repository.CustomerRepository;
-import com.rvmc.ordertaker.repository.MenuItemRepository;
 import com.rvmc.ordertaker.repository.OrderRepository;
 import com.rvmc.ordertaker.repository.RestaurantRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -32,40 +31,30 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
     @Mock private CustomerRepository customerRepository;
-    @Mock private MenuItemRepository menuItemRepository;
+    @Mock private CartRepository cartRepository;
+    @Mock private CartService cartService;
     @Mock private OrderMapper orderMapper;
     @Mock private OrderRepository orderRepository;
     @Mock private RestaurantRepository restaurantRepository;
     @InjectMocks private OrderService orderService;
 
-    /*
-    * createOrder Tests
-    */
-    @Test void createOrder_shouldReturnMappedOrder_whenRequestIsValid() {
-//         Arrange
+    // -------------------------------------------------------------------------
+    // createOrder
+    // -------------------------------------------------------------------------
+
+    @Test
+    void createOrder_shouldSaveOrderMapResponseAndDeactivateCart_whenActiveCartIsValid() {
+        // Arrange
         Long customerId = 1L;
         Long restaurantId = 5L;
-        List<Long> itemIds = List.of(10L, 11L);
 
-        OrderRequest request = new OrderRequest(
-                customerId,
-                restaurantId,
-                List.of(
-                        new OrderItemRequest(10L, (short) 2),
-                        new OrderItemRequest(11L, (short) 1)
-                )
-        );
-
+        Customer customer = Customer.builder().customerId(customerId).build();
         Restaurant restaurant = Restaurant.builder()
                 .restaurantId(restaurantId)
                 .restaurantName("Burger Joint")
                 .build();
 
-        Customer customer = Customer.builder()
-                .customerId(customerId)
-                .build();
-
-        MenuItem item10 = MenuItem.builder()
+        MenuItem burger = MenuItem.builder()
                 .menuItemId(10L)
                 .restaurant(restaurant)
                 .itemName("Cheeseburger")
@@ -74,7 +63,7 @@ class OrderServiceTest {
                 .isDeleted(false)
                 .build();
 
-        MenuItem item11 = MenuItem.builder()
+        MenuItem fries = MenuItem.builder()
                 .menuItemId(11L)
                 .restaurant(restaurant)
                 .itemName("Fries")
@@ -83,260 +72,241 @@ class OrderServiceTest {
                 .isDeleted(false)
                 .build();
 
+        List<CartItem> items = List.of(
+                CartItem.builder().menuItem(burger).quantity((short) 2).build(),
+                CartItem.builder().menuItem(fries).quantity((short) 1).build()
+        );
+
+        Cart activeCart = Cart.builder()
+                .cartId(70L)
+                .customer(customer)
+                .restaurant(restaurant)
+                .isActive(true)
+                .cartItems(items)
+                .build();
+
+        Cart deactivatedCart = Cart.builder()
+                .cartId(70L)
+                .customer(customer)
+                .restaurant(restaurant)
+                .isActive(false)
+                .cartItems(items)
+                .build();
+
         OrderResponse expectedResponse = mock(OrderResponse.class);
 
-        when(menuItemRepository.findAllByMenuItemIdInAndIsDeleted(itemIds, false))
-                .thenReturn(List.of(item10, item11));
-        when(restaurantRepository.findById(restaurantId))
-                .thenReturn(Optional.of(restaurant));
-        when(customerRepository.findById(customerId))
-                .thenReturn(Optional.of(customer));
-        when(orderRepository.save(any(Order.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(orderMapper.toResponse(any(Order.class)))
-                .thenReturn(expectedResponse);
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(cartRepository.findByCustomerAndIsActive(customer, true)).thenReturn(Optional.of(activeCart));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(expectedResponse);
+        when(cartService.deactivateCart(activeCart)).thenReturn(deactivatedCart);
 
         // Act
-        OrderResponse result = orderService.createOrder(request);
+        OrderResponse result = orderService.createOrder(customerId);
 
         // Assert
         assertNotNull(result);
         assertEquals(expectedResponse, result);
 
-        // Verify
-        verify(menuItemRepository, times(1)).findAllByMenuItemIdInAndIsDeleted(itemIds, false);
-        verify(restaurantRepository, times(1)).findById(restaurantId);
-        verify(customerRepository, times(1)).findById(customerId);
-        verify(orderRepository, times(1)).save(any(Order.class));
-        verify(orderMapper, times(1)).toResponse(any(Order.class));
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository, times(1)).save(orderCaptor.capture());
+
+        Order savedOrder = orderCaptor.getValue();
+        assertEquals(customer, savedOrder.getCustomer());
+        assertEquals(restaurant, savedOrder.getRestaurant());
+        assertEquals(OrderStatus.PENDING, savedOrder.getStatus());
+        assertEquals(0, BigDecimal.valueOf(620.00).compareTo(savedOrder.getTotalAmount()));
+        assertEquals(2, savedOrder.getOrderItems().size());
+        assertEquals(BigDecimal.valueOf(250.00), savedOrder.getOrderItems().getFirst().getPriceAtOrderTime());
+        assertEquals((short) 2, savedOrder.getOrderItems().getFirst().getQuantity());
+        assertEquals(savedOrder, savedOrder.getOrderItems().getFirst().getOrder());
+
+        InOrder inOrder = inOrder(orderRepository, orderMapper, cartService);
+        inOrder.verify(orderRepository).save(savedOrder);
+        inOrder.verify(orderMapper).toResponse(savedOrder);
+        inOrder.verify(cartService).deactivateCart(activeCart);
     }
 
-    @Test void createOrder_shouldThrowResourceNotFoundException_whenRestaurantDoesNotExist() {
+    @Test
+    void createOrder_shouldThrowResourceNotFoundException_whenCartItemsIsNull() {
         // Arrange
         Long customerId = 1L;
-        Long restaurantId = 99L;
-        List<Long> itemIds = List.of(10L);
-
-        OrderRequest request = new OrderRequest(
-                customerId,
-                restaurantId,
-                List.of(new OrderItemRequest(10L, (short) 1))
-        );
-
-        MenuItem item10 = MenuItem.builder()
-                .menuItemId(10L)
-                .restaurant(Restaurant.builder().restaurantId(restaurantId).build())
-                .price(BigDecimal.valueOf(250.00))
-                .isAvailable(true)
-                .isDeleted(false)
-                .build();
-
-        when(menuItemRepository.findAllByMenuItemIdInAndIsDeleted(itemIds, false))
-                .thenReturn(List.of(item10));
-        when(restaurantRepository.findById(restaurantId))
-                .thenReturn(Optional.empty());
-
-        // Act & Assert
-        assertThrows(
-                ResourceNotFoundException.class,
-                () -> orderService.createOrder(request)
-        );
-
-        // Verify
-        verify(restaurantRepository, times(1)).findById(restaurantId);
-        verify(customerRepository, never()).findById(any());
-        verify(orderRepository, never()).save(any());
-        verify(orderMapper, never()).toResponse(any());
-    }
-
-    @Test void createOrder_shouldThrowResourceNotFoundException_whenCustomerDoesNotExist() {
-        // Arrange
-        Long customerId = 99L;
-        Long restaurantId = 5L;
-        List<Long> itemIds = List.of(10L);
-
-        OrderRequest request = new OrderRequest(
-                customerId,
-                restaurantId,
-                List.of(new OrderItemRequest(10L, (short) 1))
-        );
-
-        Restaurant restaurant = Restaurant.builder()
-                .restaurantId(restaurantId)
-                .build();
-
-        MenuItem item10 = MenuItem.builder()
-                .menuItemId(10L)
+        Customer customer = Customer.builder().customerId(customerId).build();
+        Restaurant restaurant = Restaurant.builder().restaurantId(5L).build();
+        Cart activeCart = Cart.builder()
+                .cartId(70L)
+                .customer(customer)
                 .restaurant(restaurant)
-                .price(BigDecimal.valueOf(250.00))
-                .isAvailable(true)
-                .isDeleted(false)
+                .isActive(true)
+                .cartItems(null)
                 .build();
 
-        when(menuItemRepository.findAllByMenuItemIdInAndIsDeleted(itemIds, false))
-                .thenReturn(List.of(item10));
-        when(restaurantRepository.findById(restaurantId))
-                .thenReturn(Optional.of(restaurant));
-        when(customerRepository.findById(customerId))
-                .thenReturn(Optional.empty());
-
-        // Act & Assert
-        assertThrows(
-                ResourceNotFoundException.class,
-                () -> orderService.createOrder(request)
-        );
-
-        // Verify
-        verify(restaurantRepository, times(1)).findById(restaurantId);
-        verify(customerRepository, times(1)).findById(customerId);
-        verify(orderRepository, never()).save(any());
-        verify(orderMapper, never()).toResponse(any());
-    }
-
-    @Test void createOrder_shouldThrowResourceNotFoundException_whenAnyMenuItemIsMissingOrDeleted() {
-        // Arrange
-        Long customerId = 1L;
-        Long restaurantId = 5L;
-        List<Long> requestedItemIds = List.of(10L, 11L);
-
-        OrderRequest request = new OrderRequest(
-                customerId,
-                restaurantId,
-                List.of(
-                        new OrderItemRequest(10L, (short) 2),
-                        new OrderItemRequest(11L, (short) 1)
-                )
-        );
-
-        Restaurant restaurant = Restaurant.builder()
-                .restaurantId(restaurantId)
-                .build();
-
-        // Only item 10L is returned; 11L is missing or soft-deleted
-        MenuItem item10 = MenuItem.builder()
-                .menuItemId(10L)
-                .restaurant(restaurant)
-                .price(BigDecimal.valueOf(250.00))
-                .isAvailable(true)
-                .isDeleted(false)
-                .build();
-
-        when(menuItemRepository.findAllByMenuItemIdInAndIsDeleted(requestedItemIds, false))
-                .thenReturn(List.of(item10));
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(cartRepository.findByCustomerAndIsActive(customer, true)).thenReturn(Optional.of(activeCart));
 
         // Act & Assert
         ResourceNotFoundException exception = assertThrows(
                 ResourceNotFoundException.class,
-                () -> orderService.createOrder(request)
+                () -> orderService.createOrder(customerId)
         );
+        assertEquals("Cart cannot be empty.", exception.getMessage());
 
-        assertTrue(exception.getMessage().contains("[11]"));
-
-        // Verify short-circuit before restaurant/customer/order steps
-        verify(menuItemRepository, times(1)).findAllByMenuItemIdInAndIsDeleted(requestedItemIds, false);
-        verifyNoInteractions(restaurantRepository, customerRepository, orderRepository, orderMapper);
+        verifyNoInteractions(orderRepository, orderMapper, cartService);
     }
 
-    @Test void createOrder_shouldThrowIllegalArgumentException_whenMenuItemBelongsToDifferentRestaurant() {
+    @Test
+    void createOrder_shouldThrowIllegalStateException_whenActiveCartItemsListIsEmpty() {
         // Arrange
         Long customerId = 1L;
-        Long requestedRestaurantId = 5L;
-        Long otherRestaurantId = 99L;
-        List<Long> requestedItemIds = List.of(10L);
+        Customer customer = Customer.builder().customerId(customerId).build();
+        Restaurant restaurant = Restaurant.builder().restaurantId(5L).build();
+        Cart activeCart = Cart.builder()
+                .cartId(70L)
+                .customer(customer)
+                .restaurant(restaurant)
+                .isActive(true)
+                .cartItems(List.of())
+                .build();
 
-        OrderRequest request = new OrderRequest(
-                customerId,
-                requestedRestaurantId,
-                List.of(new OrderItemRequest(10L, (short) 1))
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(cartRepository.findByCustomerAndIsActive(customer, true)).thenReturn(Optional.of(activeCart));
+
+        // Act & Assert
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> orderService.createOrder(customerId)
         );
+        assertEquals("Cannot create an order from an empty cart.", exception.getMessage());
 
-        Restaurant otherRestaurant = Restaurant.builder()
-                .restaurantId(otherRestaurantId)
-                .build();
+        verifyNoInteractions(orderRepository, orderMapper, cartService);
+    }
 
-        MenuItem itemFromWrongRestaurant = MenuItem.builder()
+    @Test
+    void createOrder_shouldThrowIllegalArgumentException_whenMenuItemPriceIsNull() {
+        // Arrange
+        Long customerId = 1L;
+        Customer customer = Customer.builder().customerId(customerId).build();
+        Restaurant restaurant = Restaurant.builder().restaurantId(5L).build();
+
+        MenuItem itemWithoutPrice = MenuItem.builder()
                 .menuItemId(10L)
-                .restaurant(otherRestaurant)
-                .price(BigDecimal.valueOf(250.00))
-                .isAvailable(true)
-                .isDeleted(false)
+                .restaurant(restaurant)
+                .price(null)
                 .build();
 
-        when(menuItemRepository.findAllByMenuItemIdInAndIsDeleted(requestedItemIds, false))
-                .thenReturn(List.of(itemFromWrongRestaurant));
+        CartItem cartItem = CartItem.builder()
+                .menuItem(itemWithoutPrice)
+                .quantity((short) 1)
+                .build();
+
+        Cart activeCart = Cart.builder()
+                .cartId(70L)
+                .customer(customer)
+                .restaurant(restaurant)
+                .isActive(true)
+                .cartItems(List.of(cartItem))
+                .build();
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(cartRepository.findByCustomerAndIsActive(customer, true)).thenReturn(Optional.of(activeCart));
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> orderService.createOrder(request)
+                () -> orderService.createOrder(customerId)
         );
+        assertEquals("Menu item price cannot be null.", exception.getMessage());
 
-        assertEquals(
-                "One or more menu items do not belong to this restaurant.",
-                exception.getMessage()
-        );
-
-        // Verify short-circuit before restaurant/customer/order steps
-        verify(menuItemRepository, times(1)).findAllByMenuItemIdInAndIsDeleted(requestedItemIds, false);
-        verifyNoInteractions(restaurantRepository, customerRepository, orderRepository, orderMapper);
+        verifyNoInteractions(orderRepository, orderMapper, cartService);
     }
 
-    @Test void createOrder_shouldDeduplicateItemIdsAndSucceed_whenRequestListsSameItemTwice() {
+    @Test
+    void createOrder_shouldThrowIllegalStateException_whenDataIntegrityViolationOccursOnSave() {
         // Arrange
         Long customerId = 1L;
-        Long restaurantId = 5L;
+        Customer customer = Customer.builder().customerId(customerId).build();
+        Restaurant restaurant = Restaurant.builder().restaurantId(5L).build();
 
-        OrderRequest request = new OrderRequest(
-                customerId,
-                restaurantId,
-                List.of(
-                        new OrderItemRequest(10L, (short) 1),
-                        new OrderItemRequest(10L, (short) 2)
-                )
-        );
-
-        List<Long> expectedDistinctIds = List.of(10L);
-
-        Restaurant restaurant = Restaurant.builder()
-                .restaurantId(restaurantId)
-                .build();
-        Customer customer = Customer.builder()
-                .customerId(customerId)
-                .build();
-        MenuItem item10 = MenuItem.builder()
+        MenuItem item = MenuItem.builder()
                 .menuItemId(10L)
                 .restaurant(restaurant)
-                .price(BigDecimal.valueOf(250.00))
-                .isAvailable(true)
-                .isDeleted(false)
+                .price(BigDecimal.valueOf(150.00))
                 .build();
 
-        OrderResponse expectedResponse = mock(OrderResponse.class);
+        CartItem cartItem = CartItem.builder()
+                .menuItem(item)
+                .quantity((short) 1)
+                .build();
 
-        when(menuItemRepository.findAllByMenuItemIdInAndIsDeleted(expectedDistinctIds, false))
-                .thenReturn(List.of(item10));
-        when(restaurantRepository.findById(restaurantId))
-                .thenReturn(Optional.of(restaurant));
-        when(customerRepository.findById(customerId))
-                .thenReturn(Optional.of(customer));
+        Cart activeCart = Cart.builder()
+                .cartId(70L)
+                .customer(customer)
+                .restaurant(restaurant)
+                .isActive(true)
+                .cartItems(List.of(cartItem))
+                .build();
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(cartRepository.findByCustomerAndIsActive(customer, true)).thenReturn(Optional.of(activeCart));
         when(orderRepository.save(any(Order.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(orderMapper.toResponse(any(Order.class)))
-                .thenReturn(expectedResponse);
+                .thenThrow(new DataIntegrityViolationException("Duplicate order reference"));
 
-        // Act
-        OrderResponse result = orderService.createOrder(request);
+        // Act & Assert
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> orderService.createOrder(customerId)
+        );
+        assertEquals("Order could not be saved due to a data constraint violation.", exception.getMessage());
 
-        // Assert & Verify
-        assertEquals(expectedResponse, result);
-        verify(menuItemRepository, times(1))
-                .findAllByMenuItemIdInAndIsDeleted(expectedDistinctIds, false);
         verify(orderRepository, times(1)).save(any(Order.class));
+        verifyNoInteractions(orderMapper, cartService);
     }
 
-    /*
-    * updateOrder Tests
-    * */
+    @Test
+    void createOrder_shouldThrowIllegalStateException_whenGenericDataAccessExceptionOccursOnSave() {
+        // Arrange
+        Long customerId = 1L;
+        Customer customer = Customer.builder().customerId(customerId).build();
+        Restaurant restaurant = Restaurant.builder().restaurantId(5L).build();
+
+        MenuItem item = MenuItem.builder()
+                .menuItemId(10L)
+                .restaurant(restaurant)
+                .price(BigDecimal.valueOf(150.00))
+                .build();
+
+        CartItem cartItem = CartItem.builder()
+                .menuItem(item)
+                .quantity((short) 1)
+                .build();
+
+        Cart activeCart = Cart.builder()
+                .cartId(70L)
+                .customer(customer)
+                .restaurant(restaurant)
+                .isActive(true)
+                .cartItems(List.of(cartItem))
+                .build();
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(cartRepository.findByCustomerAndIsActive(customer, true)).thenReturn(Optional.of(activeCart));
+        when(orderRepository.save(any(Order.class)))
+                .thenThrow(new DataAccessException("Database connection lost") {});
+
+        // Act & Assert
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> orderService.createOrder(customerId)
+        );
+        assertEquals("Failed to save order due to a persistence error.", exception.getMessage());
+
+        verify(orderRepository, times(1)).save(any(Order.class));
+        verifyNoInteractions(orderMapper, cartService);
+    }
+
+    // -------------------------------------------------------------------------
+    // updateOrder
+    // -------------------------------------------------------------------------
 
     @Test void updateOrderStatus_shouldUpdateStatusSaveAndReturnResponse_whenTransitionIsValid() {
         // Arrange
@@ -475,9 +445,9 @@ class OrderServiceTest {
         verifyNoInteractions(orderMapper);
     }
 
-    /*
-    * getCustomerOrderById Tests
-    * */
+    // -------------------------------------------------------------------------
+    // getCustomerOrderById
+    // -------------------------------------------------------------------------
 
     @Test void getCustomerOrderById_shouldReturnMappedResponse_whenCustomerAndOrderExistForCustomer() {
         // Arrange
@@ -556,9 +526,9 @@ class OrderServiceTest {
         verifyNoInteractions(orderMapper);
     }
 
-    /*
-    * getRestaurantOrderById Tests
-    * */
+    // -------------------------------------------------------------------------
+    // getRestaurantOrderById
+    // -------------------------------------------------------------------------
 
     @Test void getRestaurantOrderById_shouldReturnMappedResponse_whenRestaurantAndOrderExistForRestaurant() {
         // Arrange
@@ -637,9 +607,9 @@ class OrderServiceTest {
         verifyNoInteractions(orderMapper);
     }
 
-    /*
-    * getAllCustomerOrders Tests
-    * */
+    // -------------------------------------------------------------------------
+    // getAllCustomerOrders
+    // -------------------------------------------------------------------------
 
     @Test void getAllCustomerOrders_shouldReturnMappedOrders_whenCustomerExistsAndHasOrders() {
         // Arrange
@@ -720,9 +690,9 @@ class OrderServiceTest {
         verifyNoInteractions(orderRepository, orderMapper);
     }
 
-    /*
-    * getAllRestaurantOrders Tests
-    * */
+    // -------------------------------------------------------------------------
+    // getAllRestaurantOrders
+    // -------------------------------------------------------------------------
 
     @Test void getAllRestaurantOrders_shouldReturnMappedOrders_whenRestaurantExistsAndHasOrders() {
         // Arrange
@@ -802,5 +772,4 @@ class OrderServiceTest {
         verify(restaurantRepository, times(1)).findById(restaurantId);
         verifyNoInteractions(orderRepository, orderMapper);
     }
-
 }

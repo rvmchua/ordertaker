@@ -7,6 +7,7 @@ import com.rvmc.ordertaker.service.CustomerService;
 import com.rvmc.ordertaker.service.MenuService;
 import com.rvmc.ordertaker.service.OrderService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,20 +22,23 @@ public class CustomerController {
     private final OrderService orderService;
     private final CartService cartService;
 
+    // -------------------------------------------------------------------------
+    // Profile
+    // -------------------------------------------------------------------------
+
     @GetMapping("profile")
     public CustomerProfileResponse findProfile(Long customerId) {
         return customerService.findByCustomerId(customerId);
     }
 
-//    TODO: Check how to use PatchMapping instead of PutMapping
-    @PatchMapping("profile")
+    @PutMapping("profile")
     public CustomerProfileResponse patchProfile(@RequestBody CustomerProfileRequest request) {
         return customerService.editProfile(request);
     }
 
-    /*
-    * Orders
-    // */
+    // -------------------------------------------------------------------------
+    // Order
+    // -------------------------------------------------------------------------
 
     @GetMapping("order")
     public List<OrderResponse> getAllOrders(@Valid @RequestBody Long customerId) {
@@ -47,15 +51,34 @@ public class CustomerController {
     }
 
     @PostMapping("order")
-    public OrderResponse createOrder (@Valid @RequestBody OrderRequest request) {
-        return orderService.createOrder(request);
+    public OrderResponse checkoutCartToCreateOrder (@Valid @RequestBody Long customerId) {
+        return orderService.createOrder(customerId);
     }
 
     @PatchMapping("order/{orderId}")
-    public OrderResponse cancelOrder (@PathVariable Long orderId, @Valid @RequestBody UpdateOrderStatus status) {
+    public OrderResponse cancelOrder (@PathVariable Long orderId, @Valid @RequestBody @NotNull UpdateOrderStatus status) {
         if (!status.status().equals(OrderStatus.CANCELLED)) {
             throw new RuntimeException("Customers can only cancel their order.");
         }
         return orderService.updateOrderStatus(status, orderId);
     }
+
+    // -------------------------------------------------------------------------
+    // Cart
+    // -------------------------------------------------------------------------
+    @GetMapping("cart")
+    public CartResponse getActiveCart(@Valid @RequestBody Long customerId){
+        return cartService.getActiveCart(customerId);
+    }
+
+    @PostMapping("cart")
+    public CartResponse createCart(@Valid @RequestBody @NotNull CreateCartRequest request) {
+        return cartService.createActiveCart(request);
+    }
+
+    @PutMapping("cart")
+    public CartResponse updateCart(@Valid @RequestBody @NotNull UpdateCartRequest request) {
+        return cartService.updateActiveCart(request);
+    }
+
 }
