@@ -145,15 +145,34 @@ In an IDE, configure the same three environment variables in the run configurati
 
 Ensure Maven uses a JDK 21 installation (including `javac`); selecting only a JRE or using a Java executable without its matching compiler can fail compilation.
 
+On the current development machine, IntelliJ's JDK 21 is installed at
+`$HOME/.jdks/temurin-21.0.12.1`. Select it explicitly when running Maven from a
+fresh shell; replace the path if your JDK 21 is installed elsewhere:
+
 ```sh
+JAVA_HOME="$HOME/.jdks/temurin-21.0.12.1" \
+PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
 ./mvnw -DskipTests package
-./mvnw spring-boot:run
 ```
+
+For `spring-boot:run`, use the same `JAVA_HOME` and `PATH` assignments before
+`./mvnw spring-boot:run`. The inline assignments apply to that invocation and do
+not persist into later shell sessions.
 
 ### Tests
 
 ```sh
+JAVA_HOME="$HOME/.jdks/temurin-21.0.12.1" \
+PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
 ./mvnw test
+```
+
+To run the service unit tests without the PostgreSQL-backed context test:
+
+```sh
+JAVA_HOME="$HOME/.jdks/temurin-21.0.12.1" \
+PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
+./mvnw -Dtest=OrderServiceTest,MenuServiceTest,RestaurantServiceTest test
 ```
 
 The unit tests use JUnit and Mockito. The `contextLoads` test starts the application context and therefore also needs the PostgreSQL environment variables above and a reachable database. Order-service unit tests cover order creation, lookup, and status updates; cart service tests and API integration tests have not been added yet. See [`docs/next-steps.md`](./docs/next-steps.md).

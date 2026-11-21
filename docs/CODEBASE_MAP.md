@@ -362,10 +362,22 @@ Existing tests:
 
 No existing tests cover controllers, cart behavior, customer profile editing, JWT/authentication, or Flyway migrations.
 
-For Maven builds in the shell, use a JDK 21 installation (including `javac`) and set
-`JAVA_HOME` and `PATH` accordingly. The Spring `contextLoads` test additionally
-requires the PostgreSQL environment variables to refer to a reachable database
-because JPA and Flyway start in the test application context.
+For Maven builds in the shell, use a JDK 21 installation (including `javac`). On
+the current development machine, IntelliJ's JDK 21 is at
+`$HOME/.jdks/temurin-21.0.12.1`; explicitly select it for each fresh shell
+invocation because environment overrides do not persist between shell sessions:
+
+```sh
+JAVA_HOME="$HOME/.jdks/temurin-21.0.12.1" \
+PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
+./mvnw -Dtest=OrderServiceTest,MenuServiceTest,RestaurantServiceTest test
+```
+
+For the full suite, replace the Maven arguments with `./mvnw test`. The Spring
+`contextLoads` test additionally requires the PostgreSQL environment variables
+to refer to a reachable database because JPA and Flyway start in the test
+application context. If JDK 21 is installed elsewhere, update the paths to that
+installation.
 
 ## 8. Navigation Reference
 
