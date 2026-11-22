@@ -29,9 +29,9 @@ class MenuServiceTest {
     @Mock private MenuItemRepository menuItemRepository;
     @InjectMocks private MenuService menuService;
 
-    /*
-    * createMenuItem Tests
-    * */
+    // -------------------------------------------------------------------------
+    // createMenuItem
+    // -------------------------------------------------------------------------
 
     @Test void createMenuItem_shouldReturnSavedResponse_whenRestaurantExists() {
         // Arrange
@@ -113,9 +113,9 @@ class MenuServiceTest {
         verify(menuItemMapper, never()).toResponse(any());
     }
 
-    /*
-    * updateMenuItem Tests
-    * */
+    // -------------------------------------------------------------------------
+    // updateMenuItem
+    // -------------------------------------------------------------------------
 
     @Test void updateMenuItem_shouldUpdateAndReturnResponse_whenItemExists() {
         // Arrange
@@ -203,9 +203,9 @@ class MenuServiceTest {
         verify(menuItemMapper, never()).toResponse(any());
     }
 
-    /*
-    * updateItemAvailability Tests
-    * */
+    // -------------------------------------------------------------------------
+    // updateItemAvailability
+    // -------------------------------------------------------------------------
 
     @Test void updateItemAvailability_shouldToggleAvailabilityAndReturnResponse_whenItemExists() {
         // Arrange
@@ -271,10 +271,9 @@ class MenuServiceTest {
         verify(menuItemMapper, never()).toResponse(any());
     }
 
-
-    /*
-    * deleteMenuItemSoft Tests
-    * */
+    // -------------------------------------------------------------------------
+    // deleteMenuItemSoft
+    // -------------------------------------------------------------------------
 
     @Test void deleteMenuItemSoft_shouldMarkDeleteAndReturnOk_whenItemExistsAndNotDeleted() {
 //        Arrange
@@ -346,9 +345,9 @@ class MenuServiceTest {
         verify(menuItemRepository, never()).save(any());
     }
 
-    /*
-    * getMenuItemById Tests
-    * */
+    // -------------------------------------------------------------------------
+    // getMenuItemById
+    // -------------------------------------------------------------------------
 
     @Test void getMenuItemById_shouldReturnMappedResponse_whenMenuItemExistsAndNotTaggedAsDeleted() {
         // Arrange
@@ -414,9 +413,9 @@ class MenuServiceTest {
         verify(menuItemMapper, never()).toResponse(any());
     }
 
-    /*
-    * getMenuFromRestaurant Tests
-    * */
+    // -------------------------------------------------------------------------
+    // getMenuFromRestaurant
+    // -------------------------------------------------------------------------
 
     @Test void getMenuFromRestaurant_shouldReturnMappedMenuItems_whenRestaurantExistsAndHasActiveItems() {
         // Arrange

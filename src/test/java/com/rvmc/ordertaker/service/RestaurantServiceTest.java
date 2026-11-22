@@ -27,9 +27,9 @@ class RestaurantServiceTest {
     @Mock private RestaurantMapper restaurantMapper;
     @InjectMocks private RestaurantService restaurantService;
 
-    /*
-    * getRestaurantByQuery Tests
-    * */
+    // -------------------------------------------------------------------------
+    // getRestaurantByQuery
+    // -------------------------------------------------------------------------
 
     @Test void getRestaurantByQuery_shouldReturnMappedDto_whenMatchingRestaurantsExist() {
 //        Arrange
@@ -90,9 +90,9 @@ class RestaurantServiceTest {
         verify(restaurantRepository, times(1)).findAllByRestaurantNameContainingIgnoreCase("NonExistent");
     }
 
-    /*
-    * getAllRestaurants Tests
-    * */
+    // -------------------------------------------------------------------------
+    // getAllRestaurants
+    // -------------------------------------------------------------------------
 
     @Test void getAllRestaurants_shouldReturnMappedDto_whenRestaurantsExist() {
 //        Arrange
@@ -165,9 +165,9 @@ class RestaurantServiceTest {
         verify(restaurantMapper, never()).toRestaurantProfileResponse(any());
     }
 
-    /*
-    * getRestaurantById Tests
-    * */
+    // -------------------------------------------------------------------------
+    // getRestaurantById
+    // -------------------------------------------------------------------------
 
     @Test void getRestaurantById_shouldReturnMappedDto_whenRestaurantExist() {
 //        Arrange
