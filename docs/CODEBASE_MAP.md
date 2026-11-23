@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 
-OrderTaker is an in-progress Java REST API for a local food-ordering and restaurant pickup workflow. The implemented foundation covers restaurant lookup, menu-item CRUD/soft-delete behavior, customer profile lookup, direct order creation/status/listing, and service-level active-cart creation/retrieval/replacement. Authentication, authorization, cart HTTP endpoints and checkout, complete profile editing, and controller coverage for menu browsing are still incomplete.
+OrderTaker is an in-progress Java REST API for a local food-ordering and restaurant pickup workflow. The implemented foundation covers restaurant lookup, menu-item CRUD/soft-delete behavior, customer profile lookup, customer cart retrieval/creation/replacement, and checkout from the active cart with server-calculated totals and price snapshots. Authentication, authorization, complete profile editing, menu browsing, and controller integration coverage are still incomplete.
 
 The project is intended to demonstrate:
 
@@ -89,11 +89,14 @@ There is no authentication/authorization implementation in source code. JWT libr
 | Method | Route | Implemented behavior |
 |---|---|---|
 | `GET` | `/profile` | Finds a customer profile by the `customerId` method parameter |
-| `PATCH` | `/profile` | Calls `CustomerService.editProfile(...)`; currently unimplemented |
+| `PUT` | `/profile` | Calls `CustomerService.editProfile(...)`; currently unimplemented |
 | `GET` | `/order` | Lists a customer's orders; accepts the customer ID in the request body |
 | `GET` | `/order/{orderId}` | Finds one customer's order; accepts the customer ID in the request body |
-| `POST` | `/order` | Creates an order from `OrderRequest` |
+| `POST` | `/order` | Checks out the customer's active cart; request body contains `customerId` |
 | `PATCH` | `/order/{orderId}` | Rejects status values other than `CANCELLED`, then calls order status update |
+| `GET` | `/cart` | Returns the customer's active cart; request body contains `customerId` |
+| `POST` | `/cart` | Creates an active cart from `CreateCartRequest` |
+| `PUT` | `/cart` | Replaces the active cart's item list from `UpdateCartRequest`; an empty list clears it |
 
 `RestaurantController` (`/api/v1/restaurants`)
 
@@ -123,14 +126,14 @@ There is no controller route that currently exposes `MenuService.getMenuFromRest
   - `editProfile(...)` is currently `return null`.
 - `OrderService`
   - Loads customer/restaurant orders.
-  - Creates orders and delegates total calculation and price snapshots to `Order.create(...)`.
-  - Loads distinct requested menu-item IDs and validates existence and restaurant ownership.
+  - Checks out a customer's active cart and maps the saved order to `OrderResponse`.
+  - Deactivates the cart after saving the order; checkout is transactional.
   - Updates status through the entity transition rules.
 - `CartService`
   - Retrieves a customer's active cart.
   - Creates an active cart from a non-empty item list, merging duplicate menu-item IDs and validating quantities and restaurant ownership.
   - Replaces the active cart's item list; an empty list clears it, and changing the cart's restaurant is rejected.
-  - Has no controller routes or service tests yet; checkout is not implemented.
+  - Deactivates a cart after checkout and has focused service-level tests.
 
 ### Repositories
 
@@ -208,18 +211,15 @@ Validation is provided by Jakarta Bean Validation:
 5. MapStruct converts entities to Java-record DTO responses.
 6. Spring MVC serializes the DTO as JSON.
 
-### Order creation
+### Checkout from cart
 
-1. `POST /api/v1/customers/order` binds `OrderRequest`.
-2. `CustomerController.createOrder(...)` calls `OrderService.createOrder(...)`.
-3. The service derives menu-item IDs from `OrderItemRequest`.
-4. It calls the menu-item repository and validates result count, IDs, non-deleted state, and restaurant ownership.
-5. It loads the restaurant and customer.
-6. `Order.create(...)` sets status to `PENDING`, builds `OrderItem` rows, snapshots each current menu price, and calculates the total.
-7. `OrderMapper` maps the saved order to `OrderResponse`.
-8. `OrderRepository.save(...)` persists the aggregate; cascade behavior persists order items.
+1. `POST /api/v1/customers/order` binds the customer ID and calls `OrderService.createOrder(...)`.
+2. The service loads the customer and active cart.
+3. `Order.create(...)` rejects an empty cart or unavailable menu item, sets status to `PENDING`, snapshots current prices, and calculates the total.
+4. `OrderRepository.save(...)` persists the order aggregate and its order items.
+5. After the order save succeeds, the service deactivates the cart and returns the mapped `OrderResponse`.
 
-The method saves the order aggregate, but cart checkout, inventory recheck, cart clearing, and rollback assertions are not implemented.
+The service is transactional, so order persistence and cart deactivation are part of the same transaction. Focused service tests cover successful checkout and save failures; controller/API integration coverage remains incomplete.
 
 ### Cart service operations
 
@@ -228,7 +228,7 @@ The method saves the order aggregate, but cart checkout, inventory recheck, cart
 3. It builds `CartItem`s, associates them with a new active `Cart`, and saves the aggregate with cascade.
 4. `getActiveCart(...)` loads the customer's active cart; `updateActiveCart(...)` replaces its entire item collection and allows an empty list to clear it.
 
-These are service methods only; no cart HTTP endpoints or cart-to-order checkout flow exists yet.
+`CustomerController` exposes the service through `GET`, `POST`, and `PUT /api/v1/customers/cart`. `OrderService` uses the active cart for checkout; no item-specific add/update/remove endpoints are implemented.
 
 ### Order status update
 
@@ -283,29 +283,28 @@ Flyway runs migrations automatically on Spring startup. Datasource values come f
 - Flyway initial PostgreSQL schema.
 - JPA entities and basic derived repositories.
 - MapStruct request/entity/response mapping for customers, restaurants, menu items, and orders.
-- Cart request/response DTOs, mapping, repository queries, active-cart service operations, and a migration aligning cart columns with entity mappings.
+- Cart request/response DTOs, mapping, repository queries, active-cart service operations, customer cart routes, and a migration aligning cart columns with entity mappings.
 - Global exceptions for not found, invalid arguments, already deleted, terminal orders, bean validation, and optimistic locking.
 - Restaurant listing/search/by-ID.
 - Menu lookup service, menu creation/update/toggle/soft-delete.
 - Customer profile lookup.
-- Direct order creation with server-calculated totals and price snapshots.
+- Cart checkout with server-calculated totals, price snapshots, transactional order persistence, and cart deactivation after a successful save.
 - Customer/restaurant order listing and customer/restaurant single-order lookup methods.
 - Order status transition validation and optimistic locking.
-- Unit tests for menu, restaurant, and order services.
+- Unit tests for cart, menu, restaurant, and order services, including checkout failure paths.
 
 ### Incomplete or planned
 
 - `CustomerService.editProfile(...)` returns `null`.
-- `CartService` supports active-cart retrieval, creation, and full item-list replacement, but has no HTTP routes or tests.
+- Cart routes support active-cart retrieval, creation, and full item-list replacement; item-specific add/update/remove operations are not implemented.
 - No cart-item repository; cart items are managed through the cart aggregate.
-- No cart HTTP endpoints or item-specific add/update/remove operations.
-- No cart-to-order checkout flow.
+- No controller/API integration tests for cart or checkout.
+- `OrderService.createOrder(...)` catches persistence exceptions and rethrows `IllegalStateException`; that exception has no explicit global HTTP mapping.
 - No authentication, authorization, login/registration, password hashing, or JWT validation.
 - No menu browsing controller endpoint, despite `MenuService.getMenuFromRestaurant(...)`.
 - No public endpoint for `MenuService.getMenuItemById(...)`.
 - Customer and restaurant ownership is not derived from an authenticated principal.
 - Customer and restaurant controller payloads accept IDs directly instead of enforcing ownership.
-- Cart request DTOs declare validation constraints, but no controller currently triggers request-body validation for them.
 - The state enum does not implement role-based permission rules or timeout behavior.
 - `IllegalStateException` has no explicit global HTTP mapping.
 - The customer cancellation guard throws plain `RuntimeException`; only cancellation is checked at controller level.
@@ -356,11 +355,12 @@ No health endpoint mapping is custom-defined; Spring Boot Actuator is present.
 Existing tests:
 
 - `src/test/java/com/rvmc/ordertaker/OrdertakerApplicationTests.java`: Spring context load smoke test.
+- `src/test/java/com/rvmc/ordertaker/service/CartServiceTest.java`: Mockito unit tests for active-cart retrieval, creation, and replacement.
 - `src/test/java/com/rvmc/ordertaker/service/MenuServiceTest.java`: Mockito unit tests for menu lookup/create/update/toggle/soft-delete.
-- `src/test/java/com/rvmc/ordertaker/service/OrderServiceTest.java`: Mockito unit tests for order lookup/creation/status updates.
+- `src/test/java/com/rvmc/ordertaker/service/OrderServiceTest.java`: Mockito unit tests for order lookup, cart checkout, and status updates.
 - `src/test/java/com/rvmc/ordertaker/service/RestaurantServiceTest.java`: Mockito unit tests for restaurant lookup, search, and listing.
 
-No existing tests cover controllers, cart behavior, customer profile editing, JWT/authentication, or Flyway migrations.
+Cart, menu, restaurant, and order service behavior has focused unit tests. No existing tests cover controllers, customer profile editing, JWT/authentication, or Flyway migrations.
 
 For Maven builds in the shell, use a JDK 21 installation (including `javac`). On
 the current development machine, IntelliJ's JDK 21 is at
@@ -370,7 +370,7 @@ invocation because environment overrides do not persist between shell sessions:
 ```sh
 JAVA_HOME="$HOME/.jdks/temurin-21.0.12.1" \
 PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
-./mvnw -Dtest=OrderServiceTest,MenuServiceTest,RestaurantServiceTest test
+./mvnw -Dtest=CartServiceTest,OrderServiceTest,MenuServiceTest,RestaurantServiceTest test
 ```
 
 For the full suite, replace the Maven arguments with `./mvnw test`. The Spring
