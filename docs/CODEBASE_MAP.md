@@ -21,6 +21,7 @@ The project is intended to demonstrate:
 | Language/runtime | Java 21 |
 | Framework | Spring Boot 4.1.1 |
 | Web | Spring MVC / `spring-boot-starter-webmvc` |
+| Security | Spring Security stateless filter chain; authentication/authorization not implemented |
 | Persistence | Spring Data JPA / Hibernate, PostgreSQL |
 | Migrations | Flyway via `spring-boot-starter-flyway` and `flyway-database-postgresql` |
 | API documentation | Springdoc OpenAPI `springdoc-openapi-starter-webmvc-ui` 3.1.0 |
@@ -41,7 +42,7 @@ The application follows a conventional layered REST architecture:
 
 Response/request mapping is handled through MapStruct interfaces. Domain creation logic for orders is in `Order.create(...)`; services own lookup, validation, and mutation logic.
 
-There is no authentication/authorization implementation in source code. JWT libraries are present, but no Spring Security dependency or security configuration is implemented.
+`security/SecurityConfiguration` installs a stateless Spring Security filter chain, disables browser-oriented login mechanisms, and currently permits all requests. JWT libraries are present, but bearer-token validation and authorization are not implemented. Do not expose the API beyond a trusted local environment until the identity and access-control work is complete.
 
 ## 2. Directory Structure
 
@@ -56,6 +57,7 @@ There is no authentication/authorization implementation in source code. JWT libr
 | `src/main/java/com/rvmc/ordertaker/dto/` | Java record request/response models |
 | `src/main/java/com/rvmc/ordertaker/mapper/` | MapStruct mapping interfaces |
 | `src/main/java/com/rvmc/ordertaker/exception/` | Domain exceptions and global HTTP exception handling |
+| `src/main/java/com/rvmc/ordertaker/security/` | Stateless Spring Security filter-chain configuration |
 | `src/main/resources/application.yaml` | Datasource configuration |
 | `src/main/resources/db/migration/` | Flyway SQL migrations |
 | `src/test/java/com/rvmc/ordertaker/` | JUnit/Mockito tests |
@@ -206,7 +208,7 @@ Validation is provided by Jakarta Bean Validation:
 
 ### Test coverage
 
-The suite currently contains 106 tests and uses IntelliJ's Java 21 JDK at
+The suite currently contains 107 tests and uses IntelliJ's Java 21 JDK at
 `$HOME/.jdks/temurin-21.0.12.1` for verification.
 
 Run the complete suite with:
@@ -224,7 +226,7 @@ Coverage includes:
 - MapStruct entity/DTO mappings, including nested restaurant and customer IDs.
 - `@WebMvcTest` controller routing, request validation, JSON responses, 400/404 handling, and cancellation edge cases.
 - `@DataJpaTest` derived-query behavior for active carts, deleted menu items, restaurant search, and customer/restaurant order lookup.
-- Spring application-context startup using an isolated H2 datasource.
+- Spring application-context startup and anonymous, session-free API access using an isolated H2 datasource.
 - Seeded checkout API integration for successful creation, cart deactivation, unavailable items, missing customers/carts, and empty carts.
 - Seeded order-status API integration for successful restaurant confirmation and rejected invalid transitions.
 

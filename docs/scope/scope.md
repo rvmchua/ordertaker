@@ -6,6 +6,7 @@ A Spring Boot REST API for browsing restaurants, placing food orders, and tracki
 - Restaurant lookup, menu-item CRUD, cart management, checkout, and order status transitions are implemented.
 - Checkout and restaurant status updates have seeded H2 API integration coverage.
 - Service, domain, MapStruct, `@WebMvcTest`/`MockMvc`, and `@DataJpaTest` coverage is included.
+- A stateless Spring Security filter chain is configured, but API routes remain public until bearer-token authentication and authorization are implemented.
 - Authentication, authorization, registration, login, JWT validation, menu browsing, and ownership derivation remain future work.
 ## Entities
 - **User:** id, name, email, passwordHash, role, createdAt

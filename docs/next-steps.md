@@ -86,7 +86,7 @@ Progress note: the transition matrix, role-specific cancellation rules, restaura
 
 ### 5. Identity and access control
 
-- [ ] Add Spring Security and a minimal stateless API configuration.
+- [x] Add Spring Security and a minimal stateless API configuration.
 - [x] Store the password hash field on `User`.
 - [ ] Encode passwords with BCrypt and add a focused password-encoding test.
 - [x] Provide the `User` email field and repository.
@@ -100,6 +100,8 @@ Progress note: the transition matrix, role-specific cancellation rules, restaura
 - [ ] Restrict menu changes to the owning restaurant.
 - [ ] Restrict cart and order access to their owning customer; restrict restaurant order updates to the owning restaurant.
 - [ ] Add tests proving unauthenticated requests are rejected and cross-owner access is denied.
+
+Progress note: Spring Security now uses a stateless filter chain with CSRF, form login, HTTP Basic, and logout disabled. Requests are intentionally permitted anonymously until bearer-token authentication and authorization are implemented; do not expose the API beyond a trusted local environment.
 
 ### 6. Release readiness
 

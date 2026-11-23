@@ -39,8 +39,9 @@ This is not yet a complete or secured ordering service. Authentication/authoriza
 - **Language:** Java 21
 - **Framework:** Spring Boot 4.1.1 (Spring MVC and Spring Data JPA)
 - **Mapping:** MapStruct 1.6.3; Lombok
+- **Security:** Spring Security is configured for stateless APIs; routes remain publicly accessible until bearer-token authentication and authorization are implemented.
 - **API documentation:** Springdoc OpenAPI dependency is included; endpoint generation and UI still need to be verified.
-- **Auth:** JJWT 0.13.0 libraries are included, but authentication and authorization are not yet implemented.
+- **Auth:** JJWT 0.13.0 libraries are included, but bearer-token authentication and authorization are not yet implemented.
 - **Database:** PostgreSQL connection settings are read from environment variables; Flyway applies the initial schema migration on startup.
 - **Build tool:** Maven
 - **Tests:** JUnit Jupiter, Mockito, MockMvc, `@WebMvcTest`, `@DataJpaTest`, H2, and Spring Boot test starters
@@ -180,7 +181,7 @@ PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
 ./mvnw -Dtest=CartServiceTest,OrderServiceTest,MenuServiceTest,RestaurantServiceTest test
 ```
 
-The suite currently contains 106 tests covering services, domain factories, status transitions, mappers, MVC controllers, JPA repositories, checkout and status API integration, and application context startup.
+The suite currently contains 107 tests covering services, domain factories, status transitions, mappers, MVC controllers, JPA repositories, checkout and status API integration, stateless security configuration, and application context startup.
 
 Test layers are:
 
@@ -188,7 +189,7 @@ Test layers are:
 - `@WebMvcTest` plus `MockMvc` for controller routing, validation, JSON responses, and exception handling.
 - `@DataJpaTest` with H2 for derived-query repository integration tests.
 - MapStruct unit tests for entity/DTO mappings.
-- `contextLoads` for Spring application-context startup with an isolated H2 datasource.
+- `OrdertakerApplicationTests` for application-context startup and anonymous, session-free API access with an isolated H2 datasource.
 - `CheckoutApiIntegrationTest` for end-to-end checkout through `MockMvc`, persistence, price snapshots, cart deactivation, and checkout errors.
 - `OrderStatusApiIntegrationTest` for seeded successful and rejected restaurant status updates through `MockMvc`.
 
