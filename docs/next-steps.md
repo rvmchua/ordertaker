@@ -6,7 +6,7 @@ Deliver one coherent, deployable food-ordering API with:
 
 - Customer and restaurant-owner registration and authentication.
 - A restaurant menu that owners can manage and customers can browse.
-- A cart that supports adding, updating, and removing items.
+- A cart that supports adding, updating, and removing items through its item-list update operation.
 - Checkout from the cart with server-calculated totals and saved order prices.
 - Order status updates with rules for customer and restaurant actions.
 - PostgreSQL persistence, request validation, focused tests, API documentation, and setup instructions.
@@ -43,22 +43,26 @@ Build and test the core workflows with seeded local/test customer and restaurant
 - [x] Add repository queries to find and check for a customer's active cart.
 - [x] Implement active-cart retrieval and creation with menu-item/restaurant validation.
 - [x] Implement replacing the active cart's item list, including clearing it with an empty list.
-- [ ] Expose cart retrieval, creation, and update through controller routes with request validation.
-- [ ] Add cart service tests for missing customer/cart, restaurant mismatch, duplicate quantities, overflow, and clearing.
-- [ ] Verify the customer cannot create a second active cart with a test.
-- [ ] Add item-level add/update/remove operations and test missing-item behavior if those operations remain part of the desired API.
+- [x] Expose cart retrieval, creation, and update through controller routes with request validation.
+- [x] Add cart service tests for missing customer/cart, restaurant mismatch, duplicate quantities, overflow, and clearing.
+- [x] Verify the customer cannot create a second active cart with a test.
+
+Progress note: `GET`, `POST`, and `PUT /api/v1/customers/cart` expose active-cart retrieval, creation, and full item-list replacement. Item-specific add/update/remove routes remain out of scope; identity-based ownership is still part of the authentication slice.
 
 ### 3. Checkout from cart
 
-- [ ] Implement checkout from the active cart; the current order endpoint still creates orders directly from request item IDs.
-- [ ] Reject checkout when the cart is empty.
-- [ ] Recheck that every cart item is still available.
-- [ ] Calculate the total from current database prices.
-- [ ] Save each item's checkout price as `priceAtOrderTime`.
-- [ ] Persist the order and order items in one transaction.
-- [ ] Clear the cart only after a successful order save.
-- [ ] Test that failed checkout leaves the cart unchanged.
-- [ ] Return the created order response and verify it in an API integration test.
+- [x] Implement checkout from the active cart.
+- [x] Reject checkout when the cart is empty.
+- [x] Recheck that every cart item is still available.
+- [x] Calculate the total from current database prices.
+- [x] Save each item's checkout price as `priceAtOrderTime`.
+- [x] Persist the order and order items in one transaction.
+- [x] Deactivate the active cart only after a successful order save.
+- [x] Test that failed order persistence does not deactivate the cart.
+- [x] Return the created order response from the checkout service and endpoint.
+- [ ] Verify checkout behavior in an API integration test.
+
+Progress note: checkout builds the order from the active cart, saves current menu prices, and deactivates the cart within the transactional service only after the order save succeeds. The remaining checkout follow-up is API-level integration coverage.
 
 ### 4. Order processing
 
