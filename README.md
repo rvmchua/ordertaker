@@ -16,7 +16,7 @@ A Spring Boot backend for a food ordering platform connecting customers and rest
 
 ## Overview
 
-OrderTaker is an in-progress food-ordering API. The current implementation supports restaurant lookup, menu-item management, customer profile lookup, and direct order creation and status updates. Cart checkout and authenticated customer/restaurant workflows are not implemented. Menu items use soft deletion, orders snapshot item prices, and order statuses have sequential transition rules.
+OrderTaker is an in-progress food-ordering API. The current implementation supports restaurant lookup, menu-item management, customer profile lookup, active-cart management, checkout from a cart, and order status updates. Authentication and authenticated customer/restaurant workflows are not implemented. Menu items use soft deletion, orders snapshot item prices, and order statuses have sequential transition rules.
 
 ## What’s Implemented
 
@@ -24,14 +24,14 @@ OrderTaker is an in-progress food-ordering API. The current implementation suppo
 - Initial JPA entities and repositories for users, customers, restaurants, menu items, carts, and orders.
 - Restaurant listing, name search, and profile lookup.
 - Menu-item creation, update, availability toggle, and soft deletion.
-- Customer profile lookup and initial order lookup, creation, and cancellation endpoints.
-- Cart service operations for creating, retrieving, and replacing a customer's active cart; these are not exposed through HTTP routes yet.
-- Direct order creation with server-calculated totals, item price snapshots, and checks for missing items and restaurant ownership.
+- Customer profile lookup and order lookup, checkout, and cancellation endpoints.
+- Customer cart retrieval, creation, and full item-list replacement through HTTP routes.
+- Checkout from the active cart with server-calculated totals, item price snapshots, availability checks, and cart deactivation after a successful order save.
 - An order status enum with sequential transitions and terminal `RECEIVED` and `CANCELLED` states.
 - A global exception handler for not-found, invalid arguments, already-deleted, terminal-order, validation, and optimistic-locking errors.
 - Initial product scope, ERD, order lifecycle diagram, and endpoint contract in [`docs/`](./docs/).
 
-This is not yet a complete or secured ordering service. Cart HTTP endpoints and checkout, authentication/authorization, menu browsing over HTTP, and cart-specific automated coverage remain incomplete. See [Next Steps](#next-steps) for the prioritized work list.
+This is not yet a complete or secured ordering service. Authentication/authorization, menu browsing over HTTP, and cart/checkout API integration tests remain incomplete. See [Next Steps](#next-steps) for the prioritized work list.
 
 ## Tech Stack
 
@@ -95,15 +95,18 @@ The endpoint document describes a planned contract; it does not mean all documen
 | `PATCH` | `/api/v1/restaurants/menu/{menuItemId}` | Toggle availability |
 | `DELETE` | `/api/v1/restaurants/menu/{menuItemId}` | Soft-delete a menu item |
 | `GET` | `/api/v1/customers/profile?customerId={id}` | Get a customer profile |
-| `PATCH` | `/api/v1/customers/profile` | Profile edit route is present but its service is unimplemented |
+| `PUT` | `/api/v1/customers/profile` | Profile edit route is present but its service is unimplemented |
 | `GET` | `/api/v1/customers/order` | List customer orders; currently reads the customer ID from the request body |
 | `GET` | `/api/v1/customers/order/{orderId}` | Get a customer order; currently reads the customer ID from the request body |
-| `POST` | `/api/v1/customers/order` | Create an order directly from item IDs and quantities |
+| `POST` | `/api/v1/customers/order` | Check out the customer's active cart; request body contains `customerId` |
 | `PATCH` | `/api/v1/customers/order/{orderId}` | Request cancellation |
+| `GET` | `/api/v1/customers/cart` | Get the customer's active cart; request body contains `customerId` |
+| `POST` | `/api/v1/customers/cart` | Create an active cart from `CreateCartRequest` |
+| `PUT` | `/api/v1/customers/cart` | Replace the active cart's item list; an empty list clears it |
 
-`MenuService` has menu lookup methods, but there is currently no HTTP route to retrieve a restaurant's menu. `CartService` supports cart retrieval, creation, and full item-list replacement, but there are no cart controller routes. Authentication routes are also absent.
+`MenuService` has menu lookup methods, but there is currently no HTTP route to retrieve a restaurant's menu. Cart updates replace the full item list; item-specific add/update/remove routes and authentication routes are absent. Customer and restaurant ownership is not yet derived from an authenticated principal.
 
-See the [endpoint contract](./docs/endpoint/Endpoint%20Documentation.pdf) for the planned routes and request/response details. Cart workflows, authentication, and customer-facing menu browsing remain future implementation work.
+See the [endpoint contract](./docs/endpoint/Endpoint%20Documentation.pdf) for the planned routes and request/response details. Authentication and customer-facing menu browsing remain future implementation work; checkout API integration coverage is also pending.
 
 ## Next Steps
 
@@ -172,10 +175,10 @@ To run the service unit tests without the PostgreSQL-backed context test:
 ```sh
 JAVA_HOME="$HOME/.jdks/temurin-21.0.12.1" \
 PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
-./mvnw -Dtest=OrderServiceTest,MenuServiceTest,RestaurantServiceTest test
+./mvnw -Dtest=CartServiceTest,OrderServiceTest,MenuServiceTest,RestaurantServiceTest test
 ```
 
-The unit tests use JUnit and Mockito. The `contextLoads` test starts the application context and therefore also needs the PostgreSQL environment variables above and a reachable database. Order-service unit tests cover order creation, lookup, and status updates; cart service tests and API integration tests have not been added yet. See [`docs/next-steps.md`](./docs/next-steps.md).
+The unit tests use JUnit and Mockito. The `contextLoads` test starts the application context and therefore also needs the PostgreSQL environment variables above and a reachable database. Cart service tests cover retrieval, creation, and replacement; order service tests cover cart checkout, lookup, and status updates. Controller/API integration tests have not been added yet. See [`docs/next-steps.md`](./docs/next-steps.md).
 
 ## Future Enhancements
 
