@@ -7,12 +7,15 @@ import com.rvmc.ordertaker.entity.Cart;
 import com.rvmc.ordertaker.entity.CartItem;
 import com.rvmc.ordertaker.entity.MenuItem;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface CartMapper {
 
     CartItem toCartItem(MenuItem menuItem);
 
+    @Mapping(source = "restaurant.restaurantId", target = "restaurantId")
+    @Mapping(source = "customer.customerId", target = "customerId")
     CartResponse toResponse(Cart cart);
 
     Cart fromCartRequestToEntity(UpdateCartRequest request);

@@ -7,6 +7,7 @@ import com.rvmc.ordertaker.entity.Customer;
 import com.rvmc.ordertaker.entity.Order;
 import com.rvmc.ordertaker.entity.Restaurant;
 import com.rvmc.ordertaker.entity.enums.OrderStatus;
+import com.rvmc.ordertaker.exception.InvalidOrderStatusTransitionException;
 import com.rvmc.ordertaker.exception.OrderTaggedAsReceivedOrCancelledException;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
 import com.rvmc.ordertaker.mapper.OrderMapper;
@@ -31,6 +32,13 @@ public class OrderService {
     private final CartRepository cartRepository;
     private final CartService cartService;
 
+    /**
+     * Finds one order owned by a customer.
+     *
+     * @param orderId order identifier
+     * @param customerId customer identifier
+     * @return mapped order
+     */
     public OrderResponse getCustomerOrderById(Long orderId, Long customerId) {
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
@@ -40,6 +48,13 @@ public class OrderService {
         return orderMapper.toResponse(order);
     }
 
+    /**
+     * Finds one order owned by a restaurant.
+     *
+     * @param orderId order identifier
+     * @param restaurantId restaurant identifier
+     * @return mapped order
+     */
     public OrderResponse getRestaurantOrderById(Long orderId, Long restaurantId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
@@ -49,6 +64,12 @@ public class OrderService {
         return orderMapper.toResponse(order);
     }
 
+    /**
+     * Lists all orders belonging to a customer.
+     *
+     * @param customerId customer identifier
+     * @return mapped customer orders
+     */
     public List<OrderResponse> getAllCustomerOrders(Long customerId) {
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
@@ -59,6 +80,12 @@ public class OrderService {
                 .toList();
     }
 
+    /**
+     * Lists all orders belonging to a restaurant.
+     *
+     * @param restaurantId restaurant identifier
+     * @return mapped restaurant orders
+     */
     public List<OrderResponse> getAllRestaurantOrders(Long restaurantId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
@@ -69,6 +96,12 @@ public class OrderService {
                 .toList();
     }
 
+    /**
+     * Creates an order from a customer's active cart and deactivates it after persistence.
+     *
+     * @param customerId customer identifier
+     * @return the mapped created order
+     */
     @Transactional
     public OrderResponse createOrder(Long customerId) {
         Customer customer = customerRepository.findById(customerId)
@@ -96,6 +129,13 @@ public class OrderService {
         }
     }
 
+    /**
+     * Applies a general sequential order-status transition.
+     *
+     * @param status requested status
+     * @param orderId order identifier
+     * @return the mapped updated order
+     */
     @Transactional
     public OrderResponse updateOrderStatus(UpdateOrderStatus status, Long orderId) {
         if (!orderRepository.existsById(orderId)) {
@@ -107,12 +147,64 @@ public class OrderService {
 
         // Validate the transition
         if (!existingOrder.getStatus().canTransitionTo(status.status())) {
-            throw new IllegalStateException("Invalid status transition from " + existingOrder.getStatus() + " to " + status.status());
+            throw new InvalidOrderStatusTransitionException("Invalid status transition from " + existingOrder.getStatus() + " to " + status.status());
         }
 
         existingOrder.setStatus(status.status());
         Order savedOrder = orderRepository.save(existingOrder);
 
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    /**
+     * Allows a customer to cancel an eligible order.
+     *
+     * @param status cancellation request
+     * @param orderId order identifier
+     * @param customerId customer identifier
+     * @return the mapped cancelled order
+     */
+    @Transactional
+    public OrderResponse cancelOrderByCustomer(UpdateOrderStatus status, Long orderId, Long customerId) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
+        Order existingOrder = orderRepository.findByOrderIdAndCustomer(orderId, customer)
+                .orElseThrow(() -> new ResourceNotFoundException("Order ID", orderId));
+
+        if (!existingOrder.getStatus().canCustomerCancelTo(status.status())) {
+            throw new InvalidOrderStatusTransitionException(
+                    "Customer cannot cancel order from " + existingOrder.getStatus() + " as " + status.status() + "."
+            );
+        }
+
+        existingOrder.setStatus(status.status());
+        Order savedOrder = orderRepository.save(existingOrder);
+        return orderMapper.toResponse(savedOrder);
+    }
+
+    /**
+     * Applies an allowed status transition for the owning restaurant.
+     *
+     * @param status requested status
+     * @param orderId order identifier
+     * @param restaurantId restaurant identifier
+     * @return the mapped updated order
+     */
+    @Transactional
+    public OrderResponse updateOrderStatusByRestaurant(UpdateOrderStatus status, Long orderId, Long restaurantId) {
+        Restaurant restaurant = restaurantRepository.findById(restaurantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
+        Order existingOrder = orderRepository.findByOrderIdAndRestaurant(orderId, restaurant)
+                .orElseThrow(() -> new ResourceNotFoundException("Order ID", orderId));
+
+        if (!existingOrder.getStatus().canRestaurantTransitionTo(status.status())) {
+            throw new InvalidOrderStatusTransitionException(
+                    "Restaurant cannot change order status from " + existingOrder.getStatus() + " to " + status.status() + "."
+            );
+        }
+
+        existingOrder.setStatus(status.status());
+        Order savedOrder = orderRepository.save(existingOrder);
         return orderMapper.toResponse(savedOrder);
     }
 

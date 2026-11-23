@@ -14,6 +14,7 @@ public interface MenuItemMapper {
     @Mapping(target = "isDeleted", constant = "false")
     MenuItem fromRequestToEntity(MenuItemRequest request);
 
+    @Mapping(source = "restaurant.restaurantId", target = "restaurantId")
     MenuItemResponse toResponse(MenuItem savedMenu);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

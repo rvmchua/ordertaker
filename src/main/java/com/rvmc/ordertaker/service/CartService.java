@@ -26,6 +26,13 @@ public class CartService {
     private final CartRepository cartRepository;
     private final RestaurantRepository restaurantRepository;
 
+    /**
+     * Finds and maps the customer's currently active cart.
+     *
+     * @param customerId identifier of the customer
+     * @return the mapped active cart response
+     * @throws ResourceNotFoundException when the customer or active cart does not exist
+     */
     public CartResponse getActiveCart(Long customerId) {
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
@@ -34,6 +41,12 @@ public class CartService {
         return cartMapper.toResponse(activeCart);
     }
 
+    /**
+     * Creates an active cart after validating quantity, customer, restaurant, and menu-item ownership.
+     *
+     * @param request cart creation request
+     * @return the mapped created cart
+     */
     @Transactional
     public CartResponse createActiveCart(CreateCartRequest request) {
         // Validate and merge requested menu items
@@ -90,6 +103,12 @@ public class CartService {
         return cartMapper.toResponse(savedCart);
     }
 
+    /**
+     * Replaces the items in a customer's active cart or clears them for an empty item list.
+     *
+     * @param request cart replacement request
+     * @return the mapped updated cart
+     */
     @Transactional
     public CartResponse updateActiveCart(UpdateCartRequest request) {
         Customer customer = customerRepository.findById(request.customerId())
@@ -159,6 +178,16 @@ public class CartService {
     // Validation
     // -------------------------------------------------------------------------
 
+    /**
+     * Merges duplicate menu-item quantities and validates quantity bounds.
+     *
+     * @param items request item records
+     * @param menuItemIdExtractor extracts the menu-item identifier
+     * @param quantityExtractor extracts the requested quantity
+     * @param requireNonEmpty whether at least one item is required
+     * @param <T> request item type
+     * @return quantities grouped by menu-item identifier
+     */
     private <T> Map<Long, Integer> normalizeQuantities(
             List<T> items,
             Function<T, Long> menuItemIdExtractor,
@@ -210,6 +239,13 @@ public class CartService {
         return quantities;
     }
 
+    /**
+     * Ensures every requested menu item exists and belongs to the selected restaurant.
+     *
+     * @param menuItems found active menu items
+     * @param requestedMenuItemIds identifiers requested by the caller
+     * @param restaurantId selected restaurant identifier
+     */
     private void validateMenuItemsForRestaurant(
             List<MenuItem> menuItems,
             List<Long> requestedMenuItemIds,
@@ -240,6 +276,12 @@ public class CartService {
         }
     }
 
+    /**
+     * Marks an active cart inactive after successful order checkout.
+     *
+     * @param activeCart cart to deactivate
+     * @return the saved deactivated cart
+     */
     @Transactional
     public Cart deactivateCart(Cart activeCart) {
         activeCart.setIsActive(false);

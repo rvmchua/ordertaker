@@ -16,6 +16,11 @@ public class RestaurantService {
     private final RestaurantRepository restaurantRepository;
     private final RestaurantMapper restaurantMapper;
 
+    /**
+     * Lists every restaurant.
+     *
+     * @return mapped restaurant profiles
+     */
     public List<RestaurantProfileResponse> getAllRestaurants() {
         return restaurantRepository
                 .findAll()
@@ -24,6 +29,12 @@ public class RestaurantService {
                 .toList();
     }
 
+    /**
+     * Finds a restaurant by identifier.
+     *
+     * @param restaurantId restaurant identifier
+     * @return mapped restaurant profile
+     */
     public RestaurantProfileResponse getRestaurantById(Long restaurantId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Restaurant", restaurantId));
@@ -31,6 +42,12 @@ public class RestaurantService {
         return restaurantMapper.toRestaurantProfileResponse(restaurant);
     }
 
+    /**
+     * Searches restaurants by a case-insensitive name fragment.
+     *
+     * @param request restaurant-name fragment
+     * @return matching mapped restaurant profiles
+     */
     public List<RestaurantProfileResponse> getRestaurantByQuery(String request) {
         List<Restaurant> restaurants = restaurantRepository.findAllByRestaurantNameContainingIgnoreCase(request.trim());
 

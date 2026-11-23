@@ -722,4 +722,24 @@ class CartServiceTest {
         verifyNoInteractions(menuItemRepository, cartMapper);
     }
 
+    @Test
+    void deactivateCart_shouldSetCartInactiveAndSaveIt() {
+        Cart activeCart = Cart.builder()
+                .cartId(30L)
+                .isActive(true)
+                .build();
+        Cart savedCart = Cart.builder()
+                .cartId(30L)
+                .isActive(false)
+                .build();
+
+        when(cartRepository.save(activeCart)).thenReturn(savedCart);
+
+        Cart result = cartService.deactivateCart(activeCart);
+
+        assertFalse(activeCart.getIsActive());
+        assertFalse(result.getIsActive());
+        verify(cartRepository).save(activeCart);
+    }
+
 }

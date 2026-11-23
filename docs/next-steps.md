@@ -23,7 +23,10 @@ A feature is complete when its main request works end-to-end, invalid input has 
 - [x] Initial JPA entities, repositories, DTOs, and mappers.
 - [x] PostgreSQL environment configuration and initial Flyway migration.
 - [x] Local build and database setup instructions.
-- [ ] Verify application startup and context tests against PostgreSQL.
+- [x] Add a Spring application-context test (`contextLoads`).
+- [x] Isolate the context test with H2 so it runs independently of local PostgreSQL.
+- [ ] Run the context test against a reachable PostgreSQL database and verify application startup.
+- [x] Add service, domain, mapper, `@WebMvcTest`/`MockMvc`, and `@DataJpaTest` coverage.
 
 ## Implementation slices
 
@@ -60,23 +63,37 @@ Progress note: `GET`, `POST`, and `PUT /api/v1/customers/cart` expose active-car
 - [x] Deactivate the active cart only after a successful order save.
 - [x] Test that failed order persistence does not deactivate the cart.
 - [x] Return the created order response from the checkout service and endpoint.
-- [ ] Verify checkout behavior in an API integration test.
+- [x] Add focused controller edge-case coverage with `@WebMvcTest` and `MockMvc`.
+- [x] Verify successful checkout and cart deactivation through the checkout API.
+- [x] Verify unavailable-item, missing-customer, missing-cart, and empty-cart checkout edge cases.
 
-Progress note: checkout builds the order from the active cart, saves current menu prices, and deactivates the cart within the transactional service only after the order save succeeds. The remaining checkout follow-up is API-level integration coverage.
+Progress note: checkout builds the order from the active cart, saves current menu prices, and deactivates the cart within the transactional service only after the order save succeeds. Successful checkout and unavailable, empty, missing-cart, and missing-customer cases now have seeded API integration coverage.
 
 ### 4. Order processing
 
-- [ ] Define and test the allowed `OrderStatus` transitions.
-- [ ] Define which states permit customer cancellation and restaurant status updates.
-- [ ] Return `409 Conflict` for an invalid transition.
-- [ ] Test one successful and one rejected status update through the API using seeded records.
+- [x] Implement sequential `OrderStatus` transitions and reject changes from terminal states.
+- [x] Cover a valid and an invalid transition in `OrderServiceTest`.
+- [x] Add focused coverage for the full transition matrix, including cancellation and terminal-state edges.
+- [x] Customers may cancel only `PENDING` or `CONFIRMED`; the customer route only accepts `CANCELLED`.
+- [x] Document role-specific cancellation rules and restaurant status-update permissions; add the restaurant update route.
+- [x] Return `409 Conflict` for an invalid transition.
+- [x] Test one successful and one rejected status update at the service layer.
+- [x] Add controller success and rejection edge-case coverage with `@WebMvcTest` and `MockMvc`.
+- [x] Test a successful restaurant status update through the API using seeded records.
+- [x] Test a rejected restaurant status update through the API using seeded records.
+
+Progress note: the transition matrix, role-specific cancellation rules, restaurant update route, `409 Conflict` mapping, and seeded successful/rejected restaurant status API integration tests are implemented.
 
 ### 5. Identity and access control
 
 - [ ] Add Spring Security and a minimal stateless API configuration.
-- [ ] Add BCrypt password encoding and a focused password-encoding test.
-- [ ] Implement customer registration and reject duplicate email addresses.
-- [ ] Implement restaurant-owner registration with the restaurant role.
+- [x] Store the password hash field on `User`.
+- [ ] Encode passwords with BCrypt and add a focused password-encoding test.
+- [x] Provide the `User` email field and repository.
+- [ ] Implement customer registration and explicitly reject duplicate email addresses.
+- [x] Define the `RESTAURANT` role and the `User`-to-restaurant owner relationship.
+- [ ] Implement restaurant-owner registration with the agreed role name (`RESTAURANT_OWNER` in scope documentation).
+- [x] Include JJWT dependencies for token support.
 - [ ] Implement email/password login and return a signed JWT.
 - [ ] Validate bearer tokens on protected requests.
 - [ ] Derive the acting customer or restaurant from the authenticated principal, not request IDs.
@@ -86,7 +103,9 @@ Progress note: checkout builds the order from the active cart, saves current men
 
 ### 6. Release readiness
 
-- [ ] Map invalid request data to `400 Bad Request` with a consistent JSON body.
+- [x] Map Bean Validation and `IllegalArgumentException` failures to `400 Bad Request` JSON responses.
+- [ ] Use a consistent JSON error shape and cover other invalid-request/binding failures.
+- [x] Include the Springdoc OpenAPI UI dependency.
 - [ ] Verify the OpenAPI UI and document its local URL.
 - [ ] Align the endpoint contract and [scope.md](./scope/scope.md) with the pickup workflow.
 - [ ] Follow the setup instructions from a clean checkout.

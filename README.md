@@ -29,9 +29,10 @@ OrderTaker is an in-progress food-ordering API. The current implementation suppo
 - Checkout from the active cart with server-calculated totals, item price snapshots, availability checks, and cart deactivation after a successful order save.
 - An order status enum with sequential transitions and terminal `RECEIVED` and `CANCELLED` states.
 - A global exception handler for not-found, invalid arguments, already-deleted, terminal-order, validation, and optimistic-locking errors.
+- JUnit coverage for service workflows, domain factories and status transitions, MapStruct mappings, MVC controller routes, and JPA repository derived queries.
 - Initial product scope, ERD, order lifecycle diagram, and endpoint contract in [`docs/`](./docs/).
 
-This is not yet a complete or secured ordering service. Authentication/authorization, menu browsing over HTTP, and cart/checkout API integration tests remain incomplete. See [Next Steps](#next-steps) for the prioritized work list.
+This is not yet a complete or secured ordering service. Authentication/authorization and menu browsing over HTTP remain incomplete. Checkout and restaurant status updates have seeded end-to-end API integration coverage, while cart mutation and deployed-API smoke tests remain future work. See [Next Steps](#next-steps) for the prioritized work list.
 
 ## Tech Stack
 
@@ -42,7 +43,7 @@ This is not yet a complete or secured ordering service. Authentication/authoriza
 - **Auth:** JJWT 0.13.0 libraries are included, but authentication and authorization are not yet implemented.
 - **Database:** PostgreSQL connection settings are read from environment variables; Flyway applies the initial schema migration on startup.
 - **Build tool:** Maven
-- **Tests:** JUnit Jupiter and Mockito
+- **Tests:** JUnit Jupiter, Mockito, MockMvc, `@WebMvcTest`, `@DataJpaTest`, H2, and Spring Boot test starters
 
 ## Data Model
 
@@ -61,7 +62,7 @@ Full entity-relationship diagram: [`ERD.puml`](./docs/uml/ERD.puml).
 
 ## Planned Order Status Lifecycle
 
-The intended pickup flow is documented as an explicit state machine. The enum currently supports sequential transitions and cancellation from any non-terminal state; role-specific permissions and timeout behavior are not implemented yet.
+The implemented pickup flow is an explicit state machine. Customers can cancel `PENDING` or `CONFIRMED` orders, restaurants can confirm or cancel `PENDING` orders and advance confirmed/preparing orders, and `FOR_PICKUP` orders are received by the customer. Timeout behavior is not implemented.
 
 ```mermaid
 stateDiagram-v2
@@ -100,13 +101,14 @@ The endpoint document describes a planned contract; it does not mean all documen
 | `GET` | `/api/v1/customers/order/{orderId}` | Get a customer order; currently reads the customer ID from the request body |
 | `POST` | `/api/v1/customers/order` | Check out the customer's active cart; request body contains `customerId` |
 | `PATCH` | `/api/v1/customers/order/{orderId}` | Request cancellation |
+| `PATCH` | `/api/v1/restaurants/order/{orderId}?restaurantId={id}` | Restaurant status update |
 | `GET` | `/api/v1/customers/cart` | Get the customer's active cart; request body contains `customerId` |
 | `POST` | `/api/v1/customers/cart` | Create an active cart from `CreateCartRequest` |
 | `PUT` | `/api/v1/customers/cart` | Replace the active cart's item list; an empty list clears it |
 
 `MenuService` has menu lookup methods, but there is currently no HTTP route to retrieve a restaurant's menu. Cart updates replace the full item list; item-specific add/update/remove routes and authentication routes are absent. Customer and restaurant ownership is not yet derived from an authenticated principal.
 
-See the [endpoint contract](./docs/endpoint/Endpoint%20Documentation.pdf) for the planned routes and request/response details. Authentication and customer-facing menu browsing remain future implementation work; checkout API integration coverage is also pending.
+See the [endpoint contract](./docs/endpoint/Endpoint%20Documentation.pdf) for the planned routes and request/response details. Authentication and customer-facing menu browsing remain future implementation work. MVC route coverage, repository query coverage, and seeded checkout/status API integration coverage are implemented.
 
 ## Next Steps
 
@@ -170,7 +172,7 @@ PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
 ./mvnw test
 ```
 
-To run the service unit tests without the PostgreSQL-backed context test:
+To run the service unit tests only:
 
 ```sh
 JAVA_HOME="$HOME/.jdks/temurin-21.0.12.1" \
@@ -178,7 +180,19 @@ PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
 ./mvnw -Dtest=CartServiceTest,OrderServiceTest,MenuServiceTest,RestaurantServiceTest test
 ```
 
-The unit tests use JUnit and Mockito. The `contextLoads` test starts the application context and therefore also needs the PostgreSQL environment variables above and a reachable database. Cart service tests cover retrieval, creation, and replacement; order service tests cover cart checkout, lookup, and status updates. Controller/API integration tests have not been added yet. See [`docs/next-steps.md`](./docs/next-steps.md).
+The suite currently contains 106 tests covering services, domain factories, status transitions, mappers, MVC controllers, JPA repositories, checkout and status API integration, and application context startup.
+
+Test layers are:
+
+- JUnit 5 and Mockito for service and domain unit tests.
+- `@WebMvcTest` plus `MockMvc` for controller routing, validation, JSON responses, and exception handling.
+- `@DataJpaTest` with H2 for derived-query repository integration tests.
+- MapStruct unit tests for entity/DTO mappings.
+- `contextLoads` for Spring application-context startup with an isolated H2 datasource.
+- `CheckoutApiIntegrationTest` for end-to-end checkout through `MockMvc`, persistence, price snapshots, cart deactivation, and checkout errors.
+- `OrderStatusApiIntegrationTest` for seeded successful and rejected restaurant status updates through `MockMvc`.
+
+Cart tests cover retrieval, creation, replacement, quantity overflow, clearing, and cart deactivation. Order tests cover cart checkout, lookup, persistence failures, cancellation, restaurant updates, and transition rules. The H2 test configuration keeps repository and context tests independent of a local PostgreSQL instance. See [`docs/next-steps.md`](./docs/next-steps.md).
 
 ## Future Enhancements
 

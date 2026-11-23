@@ -5,13 +5,12 @@ title Order Status State
 state choicePoint <<choice>>
 Pending --> choicePoint : Restaurant reviews
 choicePoint --> Confirmed : [in stock]
-choicePoint --> Cancelled : [out of stock]
+choicePoint --> Cancelled : [out of stock / restaurant cancels]
 
-Pending --> Cancelled : Customer cancels order
-Confirmed --> Preparing : Restaurant confirms preparing
-Confirmed --> Cancelled : Customer cancels order
+Pending --> Cancelled : Customer cancels
+Confirmed --> Cancelled : Customer cancels
+Confirmed --> Preparing : Restaurant starts preparation
 Preparing --> For_Pickup : Restaurant tags for pickup
-For_Pickup --> Cancelled : Timeout(1hr) / banCustomer()
 For_Pickup --> Received : Customer confirms handoff
 
 Received --> [*]

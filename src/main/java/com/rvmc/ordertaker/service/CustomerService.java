@@ -14,6 +14,12 @@ public class CustomerService {
     private final CustomerRepository customerRepository;
     private final CustomerMapper customerMapper;
 
+    /**
+     * Finds a customer by identifier and maps the customer profile.
+     *
+     * @param customerId customer identifier
+     * @return mapped customer profile
+     */
     public CustomerProfileResponse findByCustomerId(Long customerId) {
         return customerRepository
                 .findById(customerId)
@@ -21,6 +27,13 @@ public class CustomerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
     }
 
+    /**
+     * Applies an updated customer profile request.
+     *
+     * @param request customer profile update
+     * @return the updated customer profile
+     * @deprecated profile editing is not implemented yet
+     */
     public CustomerProfileResponse editProfile(CustomerProfileRequest request) {
         return null;
     }

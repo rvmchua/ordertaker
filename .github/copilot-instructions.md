@@ -37,3 +37,9 @@ Do not regenerate documentation unnecessarily.
 - Run relevant tests when possible.
 - Report unresolved issues.
 - Identify documentation that needs updating.
+- Run Maven tests with IntelliJ's Java 21 JDK:
+  ```sh
+  JAVA_HOME="$HOME/.jdks/temurin-21.0.12.1" \
+  PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
+  ./mvnw test
+  ```

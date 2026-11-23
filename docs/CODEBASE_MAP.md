@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 
-OrderTaker is an in-progress Java REST API for a local food-ordering and restaurant pickup workflow. The implemented foundation covers restaurant lookup, menu-item CRUD/soft-delete behavior, customer profile lookup, customer cart retrieval/creation/replacement, and checkout from the active cart with server-calculated totals and price snapshots. Authentication, authorization, complete profile editing, menu browsing, and controller integration coverage are still incomplete.
+OrderTaker is an in-progress Java REST API for a local food-ordering and restaurant pickup workflow. The implemented foundation covers restaurant lookup, menu-item CRUD/soft-delete behavior, customer profile lookup, customer cart retrieval/creation/replacement, and checkout from the active cart with server-calculated totals and price snapshots. Authentication, authorization, complete profile editing, and menu browsing are still incomplete. Service, domain, mapper, MVC controller, repository, and application-context coverage are implemented.
 
 The project is intended to demonstrate:
 
@@ -28,7 +28,7 @@ The project is intended to demonstrate:
 | Boilerplate reduction | Lombok |
 | JWT dependencies | JJWT 0.13.0 (`jjwt-api`, `jjwt-impl`, `jjwt-jackson`) |
 | Build | Maven 3.9.16 wrapper, Java 21 release |
-| Tests | JUnit Jupiter, Mockito, Spring Boot test starters |
+| Tests | JUnit Jupiter, Mockito, MockMvc, `@WebMvcTest`, `@DataJpaTest`, H2, Spring Boot test starters |
 | Operations | Spring Boot Actuator |
 
 Relevant files: `pom.xml`, `src/main/resources/application.yaml`, `src/main/java/com/rvmc/ordertaker/OrdertakerApplication.java`.
@@ -78,7 +78,11 @@ There is no authentication/authorization implementation in source code. JWT libr
 - Add entity/DTO conversions in `mapper/`.
 - Add HTTP mappings for new exceptions in `exception/GlobalExceptionHandler.java`.
 - Add schema changes as a new Flyway migration under `src/main/resources/db/migration/`.
-- Add focused service tests in `src/test/java/com/rvmc/ordertaker/service/`; add context/controller tests alongside the existing test structure.
+- Add focused JUnit tests alongside the existing test structure:
+  - Mockito service/domain tests in `src/test/java/com/rvmc/ordertaker/service/` and `src/test/java/com/rvmc/ordertaker/entity/`.
+  - `@WebMvcTest` plus `MockMvc` controller tests in `src/test/java/com/rvmc/ordertaker/controller/`.
+  - `@DataJpaTest` repository integration tests in `src/test/java/com/rvmc/ordertaker/repository/`.
+  - MapStruct unit tests in `src/test/java/com/rvmc/ordertaker/mapper/`.
 
 ## 3. Architecture and Component Relationships
 
@@ -198,7 +202,31 @@ Validation is provided by Jakarta Bean Validation:
 - `MethodArgumentNotValidException` -> 400 field/message map.
 - `ObjectOptimisticLockingFailureException` -> 409 text response.
 
-`IllegalStateException` and the cancellation guard's plain `RuntimeException` are not mapped by the global handler.
+`IllegalStateException` and the cancellation guard's plain `RuntimeException` are mapped differently: `IllegalStateException` is handled as `400`, while the customer cancellation guard should be replaced or extended with the role-specific domain exception for consistent `409` responses.
+
+### Test coverage
+
+The suite currently contains 106 tests and uses IntelliJ's Java 21 JDK at
+`$HOME/.jdks/temurin-21.0.12.1` for verification.
+
+Run the complete suite with:
+
+```sh
+JAVA_HOME="$HOME/.jdks/temurin-21.0.12.1" \
+PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
+./mvnw test
+```
+
+Coverage includes:
+
+- Service success and failure paths, cart overflow and clearing, checkout persistence, and order transitions.
+- Domain factory behavior and the full `OrderStatus` transition matrix.
+- MapStruct entity/DTO mappings, including nested restaurant and customer IDs.
+- `@WebMvcTest` controller routing, request validation, JSON responses, 400/404 handling, and cancellation edge cases.
+- `@DataJpaTest` derived-query behavior for active carts, deleted menu items, restaurant search, and customer/restaurant order lookup.
+- Spring application-context startup using an isolated H2 datasource.
+- Seeded checkout API integration for successful creation, cart deactivation, unavailable items, missing customers/carts, and empty carts.
+- Seeded order-status API integration for successful restaurant confirmation and rejected invalid transitions.
 
 ## 4. Application Data Flow
 
@@ -219,7 +247,7 @@ Validation is provided by Jakarta Bean Validation:
 4. `OrderRepository.save(...)` persists the order aggregate and its order items.
 5. After the order save succeeds, the service deactivates the cart and returns the mapped `OrderResponse`.
 
-The service is transactional, so order persistence and cart deactivation are part of the same transaction. Focused service tests cover successful checkout and save failures; controller/API integration coverage remains incomplete.
+The service is transactional, so order persistence and cart deactivation are part of the same transaction. Focused service tests cover successful checkout and save failures; seeded `MockMvc` integration tests cover successful checkout and its main error paths.
 
 ### Cart service operations
 
@@ -238,7 +266,7 @@ The service is transactional, so order persistence and cart deactivation are par
 4. `OrderStatus.canTransitionTo(...)` validates the transition.
 5. JPA saves the changed status and `@Version` supplies optimistic locking.
 
-`@Enumerated` is not used on `Order.status`, so JPA currently maps the enum as its ordinal. The migration stores `status INTEGER`. This ordering must be preserved if enum values change.
+`Order.status` uses `@Enumerated(EnumType.STRING)`, so JPA persists the enum name rather than an ordinal. The migration and H2/PostgreSQL schema should store status values as text.
 
 ## 5. Database Structure
 
@@ -298,18 +326,17 @@ Flyway runs migrations automatically on Spring startup. Datasource values come f
 - `CustomerService.editProfile(...)` returns `null`.
 - Cart routes support active-cart retrieval, creation, and full item-list replacement; item-specific add/update/remove operations are not implemented.
 - No cart-item repository; cart items are managed through the cart aggregate.
-- No controller/API integration tests for cart or checkout.
-- `OrderService.createOrder(...)` catches persistence exceptions and rethrows `IllegalStateException`; that exception has no explicit global HTTP mapping.
+- No seeded end-to-end cart mutation API integration tests.
+- `OrderService.createOrder(...)` catches persistence exceptions and rethrows `IllegalStateException`; `GlobalExceptionHandler` now maps it to `400 Bad Request`.
 - No authentication, authorization, login/registration, password hashing, or JWT validation.
 - No menu browsing controller endpoint, despite `MenuService.getMenuFromRestaurant(...)`.
 - No public endpoint for `MenuService.getMenuItemById(...)`.
 - Customer and restaurant ownership is not derived from an authenticated principal.
 - Customer and restaurant controller payloads accept IDs directly instead of enforcing ownership.
 - The state enum does not implement role-based permission rules or timeout behavior.
-- `IllegalStateException` has no explicit global HTTP mapping.
 - The customer cancellation guard throws plain `RuntimeException`; only cancellation is checked at controller level.
-- Endpoint coverage for menu and order state integration is not present.
-- The `contextLoads` test may require PostgreSQL because JPA/Flyway context startup is enabled.
+- Menu browsing and cart mutation lack seeded end-to-end API integration coverage.
+- The `contextLoads` test uses isolated H2 configuration; PostgreSQL startup verification remains pending.
 - The OpenAPI UI location and contract have not been verified.
 
 The implementation checklist and future scope are in `docs/next-steps.md` and `docs/scope/scope.md`.
@@ -359,8 +386,14 @@ Existing tests:
 - `src/test/java/com/rvmc/ordertaker/service/MenuServiceTest.java`: Mockito unit tests for menu lookup/create/update/toggle/soft-delete.
 - `src/test/java/com/rvmc/ordertaker/service/OrderServiceTest.java`: Mockito unit tests for order lookup, cart checkout, and status updates.
 - `src/test/java/com/rvmc/ordertaker/service/RestaurantServiceTest.java`: Mockito unit tests for restaurant lookup, search, and listing.
+- `src/test/java/com/rvmc/ordertaker/controller/`: `@WebMvcTest` and `MockMvc` route, validation, and edge-case tests.
+- `src/test/java/com/rvmc/ordertaker/repository/`: `@DataJpaTest` derived-query repository integration tests.
+- `src/test/java/com/rvmc/ordertaker/mapper/`: MapStruct entity/DTO mapping tests.
+- `src/test/java/com/rvmc/ordertaker/entity/`: Cart, order, and `OrderStatus` domain tests.
+- `src/test/java/com/rvmc/ordertaker/controller/CheckoutApiIntegrationTest.java`: seeded checkout API integration coverage.
+- `src/test/java/com/rvmc/ordertaker/controller/OrderStatusApiIntegrationTest.java`: seeded order-status API integration coverage.
 
-Cart, menu, restaurant, and order service behavior has focused unit tests. No existing tests cover controllers, customer profile editing, JWT/authentication, or Flyway migrations.
+Cart, menu, restaurant, order, controller, repository, mapper, and entity behavior has focused test coverage. Customer profile editing, JWT/authentication, and Flyway migration coverage remain incomplete.
 
 For Maven builds in the shell, use a JDK 21 installation (including `javac`). On
 the current development machine, IntelliJ's JDK 21 is at
@@ -373,11 +406,10 @@ PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
 ./mvnw -Dtest=CartServiceTest,OrderServiceTest,MenuServiceTest,RestaurantServiceTest test
 ```
 
-For the full suite, replace the Maven arguments with `./mvnw test`. The Spring
-`contextLoads` test additionally requires the PostgreSQL environment variables
-to refer to a reachable database because JPA and Flyway start in the test
-application context. If JDK 21 is installed elsewhere, update the paths to that
-installation.
+For the full suite, replace the Maven arguments with `./mvnw test`. The
+`contextLoads`, repository, checkout, and status integration tests use isolated
+H2 datasources. PostgreSQL startup verification remains a separate roadmap item.
+If JDK 21 is installed elsewhere, update the paths to that installation.
 
 ## 8. Navigation Reference
 

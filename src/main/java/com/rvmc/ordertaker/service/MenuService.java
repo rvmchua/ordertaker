@@ -22,8 +22,11 @@ public class MenuService {
     private final RestaurantRepository restaurantRepository;
     private final MenuItemRepository menuItemRepository;
 
-    /*
-     *   Basic CRUD for menu items
+    /**
+     * Lists active, non-deleted menu items for a restaurant.
+     *
+     * @param restaurantId restaurant identifier
+     * @return mapped active menu items
      */
     public List<MenuItemResponse> getMenuFromRestaurant(Long restaurantId) {
         Restaurant restaurant = restaurantRepository.findById(restaurantId)
@@ -36,11 +39,23 @@ public class MenuService {
                 .toList();
     }
 
+    /**
+     * Finds one active, non-deleted menu item.
+     *
+     * @param menuItemId menu-item identifier
+     * @return mapped menu item
+     */
     public MenuItemResponse getMenuItemById(Long menuItemId) {
         return menuItemMapper.toResponse(menuItemRepository.findByMenuItemIdAndIsDeleted(menuItemId, false)
                 .orElseThrow(() -> new ResourceNotFoundException("Item", menuItemId)));
     }
 
+    /**
+     * Creates a menu item for an existing restaurant.
+     *
+     * @param request menu-item creation request
+     * @return the mapped saved menu item
+     */
     @Transactional
     public MenuItemResponse createMenuItem(MenuItemRequest request) {
         Restaurant restaurant = restaurantRepository.findById(request.restaurantId())
@@ -52,6 +67,13 @@ public class MenuService {
         return menuItemMapper.toResponse(savedMenu);
     }
 
+    /**
+     * Updates mutable fields on an existing menu item.
+     *
+     * @param menuItemId menu-item identifier
+     * @param request menu-item update request
+     * @return the mapped updated menu item
+     */
     @Transactional
     public MenuItemResponse updateMenuItem(Long menuItemId, MenuItemRequest request) {
         MenuItem existingItem = menuItemRepository.findById(menuItemId)
@@ -62,6 +84,12 @@ public class MenuService {
         return menuItemMapper.toResponse(updatedItem);
     }
 
+    /**
+     * Toggles an existing menu item's availability.
+     *
+     * @param menuItemId menu-item identifier
+     * @return the mapped menu item
+     */
     @Transactional
     public MenuItemResponse updateItemAvailability(Long menuItemId) {
         MenuItem existingItem = menuItemRepository.findById(menuItemId)
@@ -72,6 +100,11 @@ public class MenuService {
         return menuItemMapper.toResponse(flippedAvailability);
     }
 
+    /**
+     * Soft-deletes an existing menu item.
+     *
+     * @param menuItemId menu-item identifier
+     */
     @Transactional
     public void deleteMenuItemSoft(Long menuItemId) {
         MenuItem item = menuItemRepository.findById(menuItemId)

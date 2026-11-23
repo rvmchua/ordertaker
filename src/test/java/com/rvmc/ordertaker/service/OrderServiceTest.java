@@ -4,6 +4,7 @@ import com.rvmc.ordertaker.dto.OrderResponse;
 import com.rvmc.ordertaker.dto.UpdateOrderStatus;
 import com.rvmc.ordertaker.entity.*;
 import com.rvmc.ordertaker.entity.enums.OrderStatus;
+import com.rvmc.ordertaker.exception.InvalidOrderStatusTransitionException;
 import com.rvmc.ordertaker.exception.OrderTaggedAsReceivedOrCancelledException;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
 import com.rvmc.ordertaker.mapper.OrderMapper;
@@ -405,7 +406,7 @@ class OrderServiceTest {
         verifyNoInteractions(orderMapper);
     }
 
-    @Test void updateOrderStatus_shouldThrowIllegalStateException_whenStatusTransitionIsInvalid() {
+    @Test void updateOrderStatus_shouldThrowInvalidOrderStatusTransitionException_whenStatusTransitionIsInvalid() {
         // Arrange
         Long orderId = 100L;
         OrderStatus currentStatus = OrderStatus.PENDING;
@@ -424,8 +425,8 @@ class OrderServiceTest {
         )).thenReturn(Optional.of(existingOrder));
 
         // Act & Assert
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
+        InvalidOrderStatusTransitionException exception = assertThrows(
+                InvalidOrderStatusTransitionException.class,
                 () -> orderService.updateOrderStatus(request, orderId)
         );
 
@@ -443,6 +444,86 @@ class OrderServiceTest {
         );
         verify(orderRepository, never()).save(any());
         verifyNoInteractions(orderMapper);
+    }
+
+    @Test void cancelOrderByCustomer_shouldUpdateStatus_whenCancellationIsAllowed() {
+        Long customerId = 1L;
+        Long orderId = 100L;
+        Customer customer = Customer.builder().customerId(customerId).build();
+        Order order = Order.builder()
+                .orderId(orderId)
+                .customer(customer)
+                .status(OrderStatus.PENDING)
+                .build();
+        Order savedOrder = Order.builder()
+                .orderId(orderId)
+                .customer(customer)
+                .status(OrderStatus.CANCELLED)
+                .build();
+        UpdateOrderStatus request = new UpdateOrderStatus(OrderStatus.CANCELLED);
+        OrderResponse expectedResponse = mock(OrderResponse.class);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(orderRepository.findByOrderIdAndCustomer(orderId, customer)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(savedOrder);
+        when(orderMapper.toResponse(savedOrder)).thenReturn(expectedResponse);
+
+        OrderResponse result = orderService.cancelOrderByCustomer(request, orderId, customerId);
+
+        assertEquals(expectedResponse, result);
+        assertEquals(OrderStatus.CANCELLED, order.getStatus());
+        verify(orderRepository).save(order);
+    }
+
+    @Test void cancelOrderByCustomer_shouldRejectCancellationForPreparingOrder() {
+        Long customerId = 1L;
+        Long orderId = 100L;
+        Customer customer = Customer.builder().customerId(customerId).build();
+        Order order = Order.builder()
+                .orderId(orderId)
+                .customer(customer)
+                .status(OrderStatus.PREPARING)
+                .build();
+        UpdateOrderStatus request = new UpdateOrderStatus(OrderStatus.CANCELLED);
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(orderRepository.findByOrderIdAndCustomer(orderId, customer)).thenReturn(Optional.of(order));
+
+        assertThrows(
+                InvalidOrderStatusTransitionException.class,
+                () -> orderService.cancelOrderByCustomer(request, orderId, customerId)
+        );
+        assertEquals(OrderStatus.PREPARING, order.getStatus());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test void updateOrderStatusByRestaurant_shouldUpdateStatus_whenRestaurantTransitionIsAllowed() {
+        Long restaurantId = 5L;
+        Long orderId = 100L;
+        Restaurant restaurant = Restaurant.builder().restaurantId(restaurantId).build();
+        Order order = Order.builder()
+                .orderId(orderId)
+                .restaurant(restaurant)
+                .status(OrderStatus.PENDING)
+                .build();
+        Order savedOrder = Order.builder()
+                .orderId(orderId)
+                .restaurant(restaurant)
+                .status(OrderStatus.CONFIRMED)
+                .build();
+        UpdateOrderStatus request = new UpdateOrderStatus(OrderStatus.CONFIRMED);
+        OrderResponse expectedResponse = mock(OrderResponse.class);
+
+        when(restaurantRepository.findById(restaurantId)).thenReturn(Optional.of(restaurant));
+        when(orderRepository.findByOrderIdAndRestaurant(orderId, restaurant)).thenReturn(Optional.of(order));
+        when(orderRepository.save(order)).thenReturn(savedOrder);
+        when(orderMapper.toResponse(savedOrder)).thenReturn(expectedResponse);
+
+        OrderResponse result = orderService.updateOrderStatusByRestaurant(request, orderId, restaurantId);
+
+        assertEquals(expectedResponse, result);
+        assertEquals(OrderStatus.CONFIRMED, order.getStatus());
+        verify(orderRepository).save(order);
     }
 
     // -------------------------------------------------------------------------
