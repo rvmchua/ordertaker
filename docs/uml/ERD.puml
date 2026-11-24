@@ -72,6 +72,7 @@ entity "Carts" as cart {
     * restaurantId : BIGINT(20) <<FK, Restaurants>>
     * totalAmount : DECIMAL(15,2)
     * createdAt : DATETIME
+    * isActive : BOOLEAN
 }
 
 entity "CartItems" as cartitem {
