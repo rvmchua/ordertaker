@@ -54,11 +54,18 @@ identity source.
 ### RestaurantController
 
 - Public restaurant listing/search/detail/menu lookup.
+- Authenticated owner profile lookup, partial update, and soft deletion.
 - Authenticated owner menu creation, update, availability toggle, and
   soft deletion.
 - Authenticated owner order listing and status update.
 
 Menu and order mutations are rechecked against the authenticated restaurant.
+
+### AdminController
+
+- Administrative restaurant reactivation and hard deletion.
+- Requires `ROLE_ADMIN`; restaurant owner accounts cannot hard-delete or reactivate
+  restaurants.
 
 ## Services
 
@@ -67,7 +74,7 @@ Menu and order mutations are rechecked against the authenticated restaurant.
 | `AuthService` | Email normalization, BCrypt, registration, login, JWT response |
 | `AuthenticatedUserService` | Resolves customer or restaurant from Spring authentication |
 | `CustomerService` | Profile lookup and mutable profile updates |
-| `RestaurantService` | Restaurant listing, search, and lookup |
+| `RestaurantService` | Restaurant listing, search, lookup, profile updates, owner soft deletion, admin reactivation, and admin hard deletion |
 | `MenuService` | Menu lookup, CRUD, availability, ownership checks, soft deletion |
 | `CartService` | Active-cart operations, quantity merging, item/restaurant validation |
 | `OrderService` | Order lookup, checkout, cancellation, role-specific status updates |
@@ -101,8 +108,7 @@ Order 1 ---- 1..* OrderItem ---- 1 MenuItem
 - Authentication routes are public.
 - Health and public restaurant/menu `GET` routes are public.
 - Customer routes require `ROLE_CUSTOMER`.
-- Restaurant mutation and order routes require `ROLE_RESTAURANT_OWNER` or
-  `ROLE_RESTAURANT`.
+- Restaurant mutation and order routes require `ROLE_RESTAURANT`.
 
 `JwtAuthenticationFilter` reads `Authorization: Bearer <token>`, validates the
 token, resolves the user, and installs its role authority.
@@ -133,7 +139,7 @@ See [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md).
 | `security/` | JWT, password encoding, principal resolution |
 | `OrdertakerApplicationTests` | Spring context startup |
 
-The latest verified suite result is 130 tests, 0 failures, 0 errors.
+The latest verified suite result is 144 tests, 0 failures, 0 errors.
 
 ## Where to Change Things
 
@@ -154,8 +160,8 @@ The latest verified suite result is 130 tests, 0 failures, 0 errors.
 
 ## Documentation Index
 
-- [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md) — capstone/interview
-  source of truth
+- [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md) — project and capstone
+  reference
 - [API.md](API.md) — live API contract
 - [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) — schema and migrations
 - [TESTING.md](TESTING.md) — test strategy and result

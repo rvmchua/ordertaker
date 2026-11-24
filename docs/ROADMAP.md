@@ -7,6 +7,8 @@
 - JWT login and stateless bearer-token validation
 - Customer and restaurant role authorization
 - Restaurant listing and name search
+- Restaurant owner profile lookup, partial editing, email uniqueness, and soft deletion
+- Admin restaurant reactivation and hard deletion
 - Public menu browsing
 - Restaurant-owned menu CRUD and soft deletion
 - Active-cart creation, retrieval, replacement, and clearing
@@ -27,9 +29,8 @@ payments, or a distributed platform.
 Roles:
 
 - `CUSTOMER`: browse, maintain a cart, place and cancel eligible orders
-- `RESTAURANT_OWNER`: manage a restaurant menu and incoming orders
-- `RESTAURANT`: legacy/compatible role for restaurant route authorization
-- `ADMIN`: reserved role; no administrative workflows are currently implemented
+- `RESTAURANT`: owner account that manages a restaurant menu and incoming orders
+- `ADMIN`: performs backend administrative workflows, including restaurant deletion
 
 ## Order Lifecycle
 
@@ -52,22 +53,15 @@ changing `FOR_PICKUP` to `RECEIVED`. Restaurants may:
 
 ## Known Gaps
 
-- Customer profile editing exists at the service/controller level but is not
-  fully documented or tested around email uniqueness and validation.
-- Restaurant profile editing and deletion are not implemented.
 - Item-specific cart add/update/remove routes are not exposed; the cart uses full
   item-list replacement.
-- Customer ownership is derived in controllers, but not every profile and
-  administrative surface has complete validation coverage.
 - JWT refresh, logout/revocation, and token blacklisting are deferred.
 - Pickup timeout scheduling and customer bans are out of scope.
-- The role enum includes `RESTAURANT` and `RESTAURANT_OWNER`; registration
-  creates the latter and route authorization accepts both.
 - No payments, SMS, push notification, or Android client is included.
 
 ## Future Enhancements
 
-1. Complete profile and account lifecycle workflows.
+1. Add more account lifecycle administration workflows.
 2. Add pagination, filtering, and sorting for menus and orders.
 3. Add refresh/revoke support and configurable token audiences.
 4. Add scheduled pickup timeout and escalation policies.

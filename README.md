@@ -63,7 +63,7 @@ PATH="$HOME/.jdks/temurin-21.0.12.1/bin:$PATH" \
 ./mvnw test
 ```
 
-The current suite contains 130 tests and passes. Once running locally, the
+The current suite contains 144 tests and passes. Once running locally, the
 health endpoint is at `/actuator/health`, OpenAPI JSON at `/v3/api-docs`, and
 Swagger UI at `/swagger-ui.html`.
 

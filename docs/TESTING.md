@@ -15,7 +15,7 @@ GitHub Actions workflow runs `./mvnw test`.
 
 ## Current Result
 
-The suite currently contains 130 tests. It passes with 0 failures and 0 errors.
+The suite currently contains 144 tests. It passes with 0 failures and 0 errors.
 
 ## Test Layers
 
@@ -31,6 +31,9 @@ The suite currently contains 130 tests. It passes with 0 failures and 0 errors.
 ## Workflow Coverage
 
 - Customer and restaurant-owner registration and login
+- Customer profile email validation, normalization, and uniqueness checks
+- Restaurant profile updates and email uniqueness
+- Owner restaurant soft deletion, admin reactivation, and admin hard deletion
 - Duplicate-email and password-encoding behavior
 - JWT parsing, signing, and authenticated-user resolution
 - Cart retrieval, creation, replacement, clearing, overflow, and restaurant rules

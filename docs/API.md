@@ -93,6 +93,10 @@ IDs are not the source of customer ownership.
 | `POST` | `/api/v1/customers/order` | — | Checkout active cart |
 | `PATCH` | `/api/v1/customers/order/{orderId}` | `{"status":"CANCELLED"}` | Cancel eligible order |
 
+Profile updates are partial: omitted or `null` fields remain unchanged. A
+provided email must be valid and unique across users; accepted emails are
+trimmed and normalized to lowercase.
+
 Cart creation shape:
 
 ```json
@@ -111,10 +115,13 @@ clear the cart.
 
 ## Restaurant Owner Routes
 
-`ROLE_RESTAURANT_OWNER` or `ROLE_RESTAURANT` is required.
+`ROLE_RESTAURANT` is required.
 
 | Method | Route | Body | Purpose |
 |---|---|---|---|
+| `GET` | `/api/v1/restaurants/profile` | — | Own restaurant profile |
+| `PUT` | `/api/v1/restaurants/profile` | `RestaurantProfileRequest` | Update mutable profile fields |
+| `DELETE` | `/api/v1/restaurants/profile` | — | Soft-delete own restaurant |
 | `POST` | `/api/v1/restaurants/menu` | `MenuItemRequest` | Create menu item |
 | `PUT` | `/api/v1/restaurants/menu/{menuItemId}` | `MenuItemRequest` | Update owned item |
 | `PATCH` | `/api/v1/restaurants/menu/{menuItemId}` | — | Toggle availability |
@@ -125,6 +132,37 @@ clear the cart.
 The service verifies menu items and orders against the authenticated
 restaurant. A restaurant ID supplied on a route or query parameter is not
 used to bypass that ownership check.
+
+Restaurant profile updates are partial: omitted or `null` fields remain
+unchanged. A supplied email must be valid and unique across users. Accepted
+emails are trimmed and normalized to lowercase.
+
+```json
+{
+  "username": "owner",
+  "email": "owner@example.com",
+  "restaurantName": "Example Kitchen",
+  "address1": "Street",
+  "address2": "City"
+}
+```
+
+`RESTAURANT` owner accounts can soft-delete their own restaurant profile.
+The operation marks the profile inactive and excluded from public listings.
+
+## Admin Routes
+
+`ROLE_ADMIN` is required.
+
+| Method | Route | Body | Purpose |
+|---|---|---|---|
+| `DELETE` | `/api/v1/admin/restaurants/{restaurantId}` | — | Permanently delete a restaurant |
+| `PATCH` | `/api/v1/admin/restaurants/{restaurantId}/reactivate` | — | Reverse soft deletion |
+
+Backend administration hard-deletes the restaurant and its owner account.
+Only the admin route permanently removes the restaurant record.
+Reactivation restores `isActive=true` and `toDelete=false`, making the restaurant
+eligible for public listings again.
 
 ## HTTP Error Responses
 

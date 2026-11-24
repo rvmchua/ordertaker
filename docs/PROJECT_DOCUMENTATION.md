@@ -80,9 +80,8 @@ consolidate invariants that should not be duplicated across endpoints.
 | Role | Access |
 |---|---|
 | `CUSTOMER` | Own profile, cart, and orders |
-| `RESTAURANT_OWNER` | Own restaurant menu and restaurant orders |
-| `RESTAURANT` | Compatibility role accepted by restaurant authorization |
-| `ADMIN` | Reserved for future administrative workflows |
+| `RESTAURANT` | Own restaurant profile, menu, and restaurant orders |
+| `ADMIN` | Perform administrative workflows, including restaurant deletion |
 
 The role is stored on `User`, encoded in the JWT claim and authority, and
 mapped to `ROLE_<name>` for Spring Security.
@@ -196,7 +195,7 @@ JSON error bodies make API failures clear to a frontend or a client test.
 
 ## 11. Testing Strategy
 
-[TESTING.md](TESTING.md) documents the 130-test suite. The suite combines:
+[TESTING.md](TESTING.md) documents the 144-test suite. The suite combines:
 
 - JUnit 5 and Mockito service/domain tests.
 - `@WebMvcTest` and MockMvc controller tests.
@@ -248,11 +247,15 @@ H2 gives fast repository/context feedback without requiring PostgreSQL for unit
 and integration test execution. PostgreSQL smoke testing remains necessary for
 deployment-specific verification.
 
-## 14. Known Limitations
+## 14. Implemented Workflows and Known Limitations
 
-- Customer profile editing is implemented but requires stronger uniqueness and
-  validation coverage for email changes.
-- Restaurant profile editing and deletion are not implemented.
+- Customer profile email changes are format-validated, normalized, and checked
+  for uniqueness before the update is saved; email is optional in the partial
+  update request.
+- Restaurant (`RESTAURANT`) accounts can look up and partially update their own profile, including
+  owner username and normalized, unique email. Deleting a restaurant profile
+  soft-deletes it. Backend admin hard deletion permanently removes the restaurant
+  and its owner account. Backend admin reactivation reverses the soft deletion.
 - Cart mutation is full-list replacement rather than item-specific routes.
 - No JWT refresh or revocation workflow exists.
 - No pickup timeout scheduler or ban policy exists.
@@ -261,27 +264,7 @@ deployment-specific verification.
 
 The prioritized state of all known work is maintained in [ROADMAP.md](ROADMAP.md).
 
-## 15. Interview Defense Points
-
-Useful talking points include:
-
-- **Consistency:** checkout writes the order and snapshots prices in one
-  transaction and deactivates the cart only after persistence succeeds.
-- **Security:** bearer JWT validation is combined with role checks and
-  authenticated customer/restaurant ownership resolution.
-- **Domain design:** status transitions are in the domain enum, with role-specific
-  customer and restaurant rules.
-- **Persistence:** Flyway migrations, JPA relationships, soft deletion, and
-  optimistic locking preserve data integrity and historical records.
-- **Testing:** the project verifies behavior at unit, MVC, repository, context,
-  and workflow integration levels.
-- **Operations:** Docker Compose and health checks make local deployment portable,
-  while secrets remain outside source control.
-- **Tradeoffs:** H2 accelerates tests, PostgreSQL supplies production semantics,
-  and refresh/revocation or payments are deliberately deferred as separate
-  product scopes.
-
-## 16. Related Documentation
+## 15. Related Documentation
 
 - [Architecture and codebase map](CODEBASE_MAP.md)
 - [API contract](API.md)

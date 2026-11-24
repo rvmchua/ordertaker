@@ -90,6 +90,12 @@ Order 1 ---- 1..* OrderItem ---- 1 MenuItem
 - Cart items hold live references plus quantities; checkout creates snapshots.
 - The customer has at most one active cart because the cart repository enforces
   one cart per customer and the service prevents a second active cart.
+- `toDelete` and `isActive` implement restaurant owner soft deletion. These
+  flags exclude a soft-deleted restaurant from public listings.
+- Backend admin hard deletion removes the restaurant and its owner account
+  from the database.
+- Backend admin reactivation reverses the soft-deletion flags by setting
+  `toDelete=false` and `isActive=true`.
 - `isDeleted` implements soft deletion for menu items, allowing historical order
   references to remain valid.
 - `@Version` on orders enables optimistic concurrency and a conflict response
