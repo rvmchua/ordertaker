@@ -51,7 +51,7 @@ public class CustomerController {
      */
     @PutMapping("profile")
     public CustomerProfileResponse patchProfile(
-            @RequestBody CustomerProfileRequest request,
+            @Valid @RequestBody CustomerProfileRequest request,
             Authentication authentication
     ) {
         Customer customer = authenticatedUserService.getCustomer(authentication);

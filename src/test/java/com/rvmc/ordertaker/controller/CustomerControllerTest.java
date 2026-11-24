@@ -118,4 +118,13 @@ class CustomerControllerTest {
                         .content("{\"customerId\":null,\"restaurantId\":5,\"cartItems\":[]}"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void updateProfile_shouldReturnBadRequest_whenEmailIsInvalid() throws Exception {
+        mockMvc.perform(put("/api/v1/customers/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"not-an-email\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.email").exists());
+    }
 }
