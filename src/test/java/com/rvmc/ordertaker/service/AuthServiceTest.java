@@ -128,7 +128,7 @@ class AuthServiceTest {
                 )
         );
 
-        assertEquals(Role.RESTAURANT_OWNER.name(), response.role());
+        assertEquals(Role.RESTAURANT.name(), response.role());
         assertEquals("signed-token", response.accessToken());
         verify(restaurantRepository).save(argThat(restaurant ->
                 "Pizza Place".equals(restaurant.getRestaurantName())

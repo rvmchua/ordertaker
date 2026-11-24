@@ -60,7 +60,7 @@ class AuthControllerTest {
     @Test
     void registerRestaurantOwner_shouldReturnCreatedTokenResponse() throws Exception {
         when(authService.registerRestaurantOwner(any(RestaurantOwnerRegistrationRequest.class))).thenReturn(
-                new AuthResponse("owner-token", "Bearer", 12L, "owner@example.com", "RESTAURANT_OWNER")
+                new AuthResponse("owner-token", "Bearer", 12L, "owner@example.com", "RESTAURANT")
         );
 
         mockMvc.perform(post("/api/v1/auth/register/restaurant-owner")
@@ -77,7 +77,7 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.accessToken").value("owner-token"))
-                .andExpect(jsonPath("$.role").value("RESTAURANT_OWNER"));
+                .andExpect(jsonPath("$.role").value("RESTAURANT"));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.rvmc.ordertaker.controller;
 
 import com.rvmc.ordertaker.dto.RestaurantProfileResponse;
+import com.rvmc.ordertaker.dto.RestaurantProfileRequest;
 import com.rvmc.ordertaker.dto.MenuItemResponse;
 import com.rvmc.ordertaker.exception.GlobalExceptionHandler;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
@@ -26,6 +27,8 @@ import com.rvmc.ordertaker.entity.Restaurant;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,6 +47,7 @@ class RestaurantControllerTest {
     @BeforeEach
     void setUp() {
         Restaurant restaurant = Restaurant.builder().restaurantId(1L).build();
+        when(authenticatedUserService.getRestaurant(null)).thenReturn(restaurant);
         when(authenticatedUserService.getRestaurant(
                 org.mockito.ArgumentMatchers.any(org.springframework.security.core.Authentication.class)
         )).thenReturn(restaurant);
@@ -131,5 +135,44 @@ class RestaurantControllerTest {
                 .andExpect(jsonPath("$.error").value("Validation failed"))
                 .andExpect(jsonPath("$.fields.itemName").exists())
                 .andExpect(jsonPath("$.fields.price").exists());
+    }
+
+    @Test
+    void getProfile_shouldReturnAuthenticatedRestaurant() throws Exception {
+        RestaurantProfileResponse response = new RestaurantProfileResponse(
+                1L, "Bistro", "Address 1", "Address 2", Collections.emptyList()
+        );
+        when(restaurantService.findProfile(1L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/restaurants/profile"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.restaurantId").value(1))
+                .andExpect(jsonPath("$.restaurantName").value("Bistro"));
+        verify(restaurantService).findProfile(1L);
+    }
+
+    @Test
+    void updateProfile_shouldReturnUpdatedRestaurant() throws Exception {
+        RestaurantProfileResponse response = new RestaurantProfileResponse(
+                1L, "New Bistro", "Address 1", "Address 2", Collections.emptyList()
+        );
+        when(restaurantService.editProfile(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.any(RestaurantProfileRequest.class)
+        )).thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/restaurants/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"restaurantName\":\"New Bistro\",\"address2\":\"Address 2\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.restaurantName").value("New Bistro"));
+    }
+
+    @Test
+    void deleteProfile_shouldReturnSuccessMessage() throws Exception {
+        mockMvc.perform(delete("/api/v1/restaurants/profile"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Restaurant deleted successfully"));
+        verify(restaurantService).deleteProfile(1L);
     }
 }

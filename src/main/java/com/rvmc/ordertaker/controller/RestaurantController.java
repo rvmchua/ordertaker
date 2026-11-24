@@ -4,6 +4,7 @@ import com.rvmc.ordertaker.dto.MenuItemRequest;
 import com.rvmc.ordertaker.dto.MenuItemResponse;
 import com.rvmc.ordertaker.dto.OrderResponse;
 import com.rvmc.ordertaker.dto.RestaurantProfileResponse;
+import com.rvmc.ordertaker.dto.RestaurantProfileRequest;
 import com.rvmc.ordertaker.dto.UpdateOrderStatus;
 import com.rvmc.ordertaker.service.MenuService;
 import com.rvmc.ordertaker.service.OrderService;
@@ -70,6 +71,37 @@ public class RestaurantController {
     }
 
 //    Restaurants
+
+    /**
+     * Returns the authenticated owner's restaurant profile.
+     */
+    @GetMapping("profile")
+    public RestaurantProfileResponse getProfile(Authentication authentication) {
+        Restaurant restaurant = authenticatedUserService.getRestaurant(authentication);
+        return restaurantService.findProfile(restaurant.getRestaurantId());
+    }
+
+    /**
+     * Applies a partial update to the authenticated owner's restaurant profile.
+     */
+    @PutMapping("profile")
+    public RestaurantProfileResponse updateProfile(
+            @Valid @RequestBody RestaurantProfileRequest request,
+            Authentication authentication
+    ) {
+        Restaurant restaurant = authenticatedUserService.getRestaurant(authentication);
+        return restaurantService.editProfile(restaurant.getRestaurantId(), request);
+    }
+
+    /**
+     * Soft-deletes the authenticated restaurant owner's profile.
+     */
+    @DeleteMapping("profile")
+    public ResponseEntity<Map<String, String>> deleteProfile(Authentication authentication) {
+        Restaurant restaurant = authenticatedUserService.getRestaurant(authentication);
+        restaurantService.deleteProfile(restaurant.getRestaurantId());
+        return ResponseEntity.ok(Map.of("message", "Restaurant deleted successfully"));
+    }
 
     /**
      * Lists restaurants or searches by name.

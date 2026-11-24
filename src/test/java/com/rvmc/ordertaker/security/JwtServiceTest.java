@@ -49,7 +49,7 @@ class JwtServiceTest {
     void generateToken_shouldEncodeRestaurantOwnerRole() {
         User owner = User.builder()
                 .email("owner@example.com")
-                .role(Role.RESTAURANT_OWNER)
+                .role(Role.RESTAURANT)
                 .build();
 
         String token = jwtService.generateToken(owner);
@@ -61,6 +61,6 @@ class JwtServiceTest {
                 .getPayload();
 
         assertEquals("owner@example.com", claims.getSubject());
-        assertEquals("RESTAURANT_OWNER", claims.get("role", String.class));
+        assertEquals("RESTAURANT", claims.get("role", String.class));
     }
 }

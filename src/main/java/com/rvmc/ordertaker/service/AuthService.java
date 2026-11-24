@@ -85,7 +85,7 @@ public class AuthService {
                 .username(request.username())
                 .email(email)
                 .passwordHash(passwordEncoder.encode(request.password()))
-                .role(Role.RESTAURANT_OWNER)
+                .role(Role.RESTAURANT)
                 .build();
 
         Restaurant restaurant = Restaurant.builder()

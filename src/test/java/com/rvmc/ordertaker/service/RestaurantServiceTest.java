@@ -1,11 +1,15 @@
 package com.rvmc.ordertaker.service;
 
 import com.rvmc.ordertaker.dto.RestaurantProfileResponse;
+import com.rvmc.ordertaker.dto.RestaurantProfileRequest;
 import com.rvmc.ordertaker.entity.Restaurant;
 import com.rvmc.ordertaker.entity.User;
+import com.rvmc.ordertaker.exception.DuplicateEmailException;
+import com.rvmc.ordertaker.exception.ResourceAlreadyTaggedAsDeletedException;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
 import com.rvmc.ordertaker.mapper.RestaurantMapper;
 import com.rvmc.ordertaker.repository.RestaurantRepository;
+import com.rvmc.ordertaker.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,6 +29,7 @@ import static org.mockito.Mockito.*;
 class RestaurantServiceTest {
     @Mock private RestaurantRepository restaurantRepository;
     @Mock private RestaurantMapper restaurantMapper;
+    @Mock private UserRepository userRepository;
     @InjectMocks private RestaurantService restaurantService;
 
     // -------------------------------------------------------------------------
@@ -224,5 +229,129 @@ class RestaurantServiceTest {
 //        Validate
         verify(restaurantRepository, times(1)).findById(restaurantId);
         verify(restaurantMapper, never()).toRestaurantProfileResponse(any());
+    }
+
+    @Test
+    void editProfile_shouldUpdateProfileAndNormalizeEmail() {
+        User owner = User.builder().userId(2L).email("old@example.com").build();
+        Restaurant restaurant = Restaurant.builder()
+                .restaurantId(1L)
+                .restaurantName("Old Name")
+                .address1("Old Address")
+                .address2("Old City")
+                .owner(owner)
+                .isActive(true)
+                .toDelete(false)
+                .build();
+        RestaurantProfileRequest request = new RestaurantProfileRequest(
+                "new-owner", " New.Owner@Example.com ", "New Name", null, "New City"
+        );
+        RestaurantProfileResponse response = new RestaurantProfileResponse(
+                1L, "New Name", "Old Address", "New City", Collections.emptyList()
+        );
+
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(userRepository.existsByEmailAndUserIdNot("new.owner@example.com", 2L))
+                .thenReturn(false);
+        when(restaurantRepository.save(restaurant)).thenReturn(restaurant);
+        when(restaurantMapper.toRestaurantProfileResponse(restaurant)).thenReturn(response);
+
+        assertEquals(response, restaurantService.editProfile(1L, request));
+        assertEquals("New Name", restaurant.getRestaurantName());
+        assertEquals("New City", restaurant.getAddress2());
+        assertEquals("new-owner", owner.getUsername());
+        assertEquals("new.owner@example.com", owner.getEmail());
+        verify(restaurantRepository).save(restaurant);
+    }
+
+    @Test
+    void editProfile_shouldRejectEmailOwnedByAnotherUser() {
+        User owner = User.builder().userId(2L).email("old@example.com").build();
+        Restaurant restaurant = Restaurant.builder()
+                .restaurantId(1L)
+                .owner(owner)
+                .isActive(true)
+                .toDelete(false)
+                .build();
+        RestaurantProfileRequest request = new RestaurantProfileRequest(
+                null, "taken@example.com", null, null, null
+        );
+
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(userRepository.existsByEmailAndUserIdNot("taken@example.com", 2L))
+                .thenReturn(true);
+
+        assertThrows(
+                DuplicateEmailException.class,
+                () -> restaurantService.editProfile(1L, request)
+        );
+    }
+
+    @Test
+    void deleteProfile_shouldDeactivateAndSoftDeleteRestaurant() {
+        Restaurant restaurant = Restaurant.builder()
+                .restaurantId(1L)
+                .isActive(true)
+                .toDelete(false)
+                .build();
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(restaurantRepository.save(restaurant)).thenReturn(restaurant);
+
+        restaurantService.deleteProfile(1L);
+
+        assertTrue(restaurant.getToDelete());
+        assertFalse(restaurant.getIsActive());
+        verify(restaurantRepository).save(restaurant);
+    }
+
+    @Test
+    void deleteProfile_shouldRejectAlreadyDeletedRestaurant() {
+        Restaurant restaurant = Restaurant.builder()
+                .restaurantId(1L)
+                .isActive(false)
+                .toDelete(true)
+                .build();
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+
+        assertThrows(
+                ResourceAlreadyTaggedAsDeletedException.class,
+                () -> restaurantService.deleteProfile(1L)
+        );
+        verify(restaurantRepository, never()).save(any());
+    }
+
+    @Test
+    void hardDeleteRestaurantByAdmin_shouldDeleteOwnerAccount() {
+        User owner = User.builder().userId(2L).build();
+        Restaurant restaurant = Restaurant.builder()
+                .restaurantId(1L)
+                .owner(owner)
+                .build();
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+
+        restaurantService.hardDeleteRestaurantByAdmin(1L);
+
+        verify(userRepository).delete(owner);
+        verify(restaurantRepository, never()).delete(any());
+    }
+
+    @Test
+    void reactivateRestaurantByAdmin_shouldReverseSoftDeletionFlags() {
+        Restaurant restaurant = Restaurant.builder()
+                .restaurantId(1L)
+                .isActive(false)
+                .toDelete(true)
+                .build();
+        RestaurantProfileResponse response = new RestaurantProfileResponse(
+                1L, "Bistro", "Address", "City", Collections.emptyList()
+        );
+        when(restaurantRepository.findById(1L)).thenReturn(Optional.of(restaurant));
+        when(restaurantRepository.save(restaurant)).thenReturn(restaurant);
+        when(restaurantMapper.toRestaurantProfileResponse(restaurant)).thenReturn(response);
+
+        assertEquals(response, restaurantService.reactivateRestaurantByAdmin(1L));
+        assertTrue(restaurant.getIsActive());
+        assertFalse(restaurant.getToDelete());
+        verify(restaurantRepository).save(restaurant);
     }
 }
