@@ -2,6 +2,7 @@ package com.rvmc.ordertaker.service;
 
 import com.rvmc.ordertaker.dto.CustomerProfileRequest;
 import com.rvmc.ordertaker.dto.CustomerProfileResponse;
+import com.rvmc.ordertaker.entity.Customer;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
 import com.rvmc.ordertaker.mapper.CustomerMapper;
 import com.rvmc.ordertaker.repository.CustomerRepository;
@@ -36,5 +37,36 @@ public class CustomerService {
      */
     public CustomerProfileResponse editProfile(CustomerProfileRequest request) {
         return null;
+    }
+
+    /**
+     * Applies an update to the identified customer's mutable profile fields.
+     *
+     * @param customerId customer identifier
+     * @param request profile fields to update
+     * @return the updated customer profile
+     * @throws ResourceNotFoundException if the customer does not exist
+     */
+    public CustomerProfileResponse editProfile(Long customerId, CustomerProfileRequest request) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
+        if (request.customerName() != null) {
+            customer.setCustomerName(request.customerName());
+        }
+        if (request.address1() != null) {
+            customer.setAddress1(request.address1());
+        }
+        if (request.address2() != null) {
+            customer.setAddress2(request.address2());
+        }
+        if (customer.getUser() != null) {
+            if (request.username() != null) {
+                customer.getUser().setUsername(request.username());
+            }
+            if (request.email() != null) {
+                customer.getUser().setEmail(request.email());
+            }
+        }
+        return customerMapper.toProfileResponse(customerRepository.save(customer));
     }
 }

@@ -8,10 +8,13 @@ import com.rvmc.ordertaker.dto.UpdateOrderStatus;
 import com.rvmc.ordertaker.service.MenuService;
 import com.rvmc.ordertaker.service.OrderService;
 import com.rvmc.ordertaker.service.RestaurantService;
+import com.rvmc.ordertaker.entity.Restaurant;
+import com.rvmc.ordertaker.security.AuthenticatedUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +27,7 @@ public class RestaurantController {
     public final RestaurantService restaurantService;
     public final OrderService orderService;
     public final MenuService menuService;
+    private final AuthenticatedUserService authenticatedUserService;
 
 //    Orders
 
@@ -31,11 +35,16 @@ public class RestaurantController {
      * Lists orders belonging to a restaurant.
      *
      * @param restaurantId restaurant identifier
+     * @param authentication authenticated restaurant owner principal
      * @return mapped restaurant orders
      */
     @GetMapping("order/{restaurantId}")
-    public List<OrderResponse> getAllOrders(@PathVariable Long restaurantId) {
-        return orderService.getAllRestaurantOrders(restaurantId);
+    public List<OrderResponse> getAllOrders(
+            @PathVariable Long restaurantId,
+            Authentication authentication
+    ) {
+        Restaurant restaurant = authenticatedUserService.getRestaurant(authentication);
+        return orderService.getAllRestaurantOrders(restaurant.getRestaurantId());
     }
 
     /**
@@ -44,15 +53,20 @@ public class RestaurantController {
      * @param orderId order identifier
      * @param restaurantId restaurant identifier
      * @param status requested status
+     * @param authentication authenticated restaurant owner principal
      * @return mapped updated order
      */
     @PatchMapping("order/{orderId}")
     public OrderResponse updateOrderStatus(
             @PathVariable Long orderId,
             @RequestParam @jakarta.validation.constraints.NotNull Long restaurantId,
-            @Valid @RequestBody UpdateOrderStatus status
+            @Valid @RequestBody UpdateOrderStatus status,
+            Authentication authentication
     ) {
-        return orderService.updateOrderStatusByRestaurant(status, orderId, restaurantId);
+        Restaurant restaurant = authenticatedUserService.getRestaurant(authentication);
+        return orderService.updateOrderStatusByRestaurant(
+                status, orderId, restaurant.getRestaurantId()
+        );
     }
 
 //    Restaurants
@@ -85,18 +99,53 @@ public class RestaurantController {
         return restaurantService.getRestaurantById(restaurantId);
     }
 
+    /**
+     * Lists active, non-deleted menu items for a restaurant.
+     *
+     * @param restaurantId restaurant identifier
+     * @return active menu items
+     */
+    @GetMapping("{restaurantId}/menu")
+    public List<MenuItemResponse> getMenu(@PathVariable Long restaurantId) {
+        return menuService.getMenuFromRestaurant(restaurantId);
+    }
+
+    /**
+     * Finds one active, non-deleted menu item.
+     *
+     * @param menuItemId menu-item identifier
+     * @return mapped menu item
+     */
+    @GetMapping("menu/{menuItemId}")
+    public MenuItemResponse getMenuItem(@PathVariable Long menuItemId) {
+        return menuService.getMenuItemById(menuItemId);
+    }
+
 
 //    Menu
     /**
      * Creates a menu item.
      *
      * @param request menu-item creation request
+     * @param authentication authenticated restaurant owner principal
      * @return mapped created menu item
      */
     @PostMapping("menu")
     @ResponseStatus(HttpStatus.CREATED)
-    public MenuItemResponse createMenu(@Valid @RequestBody MenuItemRequest request) {
-        return menuService.createMenuItem(request);
+    public MenuItemResponse createMenu(
+            @Valid @RequestBody MenuItemRequest request,
+            Authentication authentication
+    ) {
+        Restaurant restaurant = authenticatedUserService.getRestaurant(authentication);
+        MenuItemRequest ownedRequest = new MenuItemRequest(
+                restaurant.getRestaurantId(),
+                request.itemName(),
+                request.description(),
+                request.price(),
+                request.isAvailable(),
+                request.isDeleted()
+        );
+        return menuService.createMenuItem(ownedRequest);
     }
 
     /**
@@ -104,33 +153,55 @@ public class RestaurantController {
      *
      * @param request menu-item update request
      * @param menuItemId menu-item identifier
+     * @param authentication authenticated restaurant owner principal
      * @return mapped updated menu item
      */
     @PutMapping("menu/{menuItemId}")
-    public MenuItemResponse updateMenuItem(@Valid @RequestBody MenuItemRequest request, @PathVariable Long menuItemId) {
-        return menuService.updateMenuItem(menuItemId, request);
+    public MenuItemResponse updateMenuItem(
+            @Valid @RequestBody MenuItemRequest request,
+            @PathVariable Long menuItemId,
+            Authentication authentication
+    ) {
+        Restaurant restaurant = authenticatedUserService.getRestaurant(authentication);
+        return menuService.updateMenuItemForRestaurant(
+                menuItemId, restaurant.getRestaurantId(), request
+        );
     }
 
     /**
      * Toggles a menu item's availability.
      *
      * @param menuItemId menu-item identifier
+     * @param authentication authenticated restaurant owner principal
      * @return mapped menu item
      */
     @PatchMapping("menu/{menuItemId}")
-    public MenuItemResponse toggleMenuItemAvailability(@PathVariable Long menuItemId) {
-        return menuService.updateItemAvailability(menuItemId);
+    public MenuItemResponse toggleMenuItemAvailability(
+            @PathVariable Long menuItemId,
+            Authentication authentication
+    ) {
+        Restaurant restaurant = authenticatedUserService.getRestaurant(authentication);
+        return menuService.updateItemAvailabilityForRestaurant(
+                menuItemId, restaurant.getRestaurantId()
+        );
     }
 
     /**
      * Soft-deletes a menu item.
      *
      * @param menuItemId menu-item identifier
+     * @param authentication authenticated restaurant owner principal
      * @return success response
      */
     @DeleteMapping("menu/{menuItemId}")
-    public ResponseEntity<Map<String, String>> deleteMenuItem(@PathVariable Long menuItemId) {
-        menuService.deleteMenuItemSoft(menuItemId);
+    public ResponseEntity<Map<String, String>> deleteMenuItem(
+            @PathVariable Long menuItemId,
+            Authentication authentication
+    ) {
+        Restaurant restaurant = authenticatedUserService.getRestaurant(authentication);
+        menuService.deleteMenuItemSoftForRestaurant(
+                menuItemId, restaurant.getRestaurantId()
+        );
         return ResponseEntity.ok(Map.of("message", " deleted successfully"));
     }
 

@@ -6,6 +6,7 @@ import com.rvmc.ordertaker.entity.MenuItem;
 import com.rvmc.ordertaker.entity.Restaurant;
 import com.rvmc.ordertaker.exception.ResourceAlreadyTaggedAsDeletedException;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
+import com.rvmc.ordertaker.exception.ForbiddenException;
 import com.rvmc.ordertaker.mapper.MenuItemMapper;
 import com.rvmc.ordertaker.repository.MenuItemRepository;
 import com.rvmc.ordertaker.repository.RestaurantRepository;
@@ -114,5 +115,80 @@ public class MenuService {
         }
         item.setIsDeleted(true);
         menuItemRepository.save(item);
+    }
+
+    /**
+     * Updates a menu item only when it belongs to the authenticated restaurant.
+     *
+     * @param menuItemId menu-item identifier
+     * @param restaurantId owning restaurant identifier
+     * @param request mutable menu-item fields
+     * @return updated menu item
+     * @throws ResourceNotFoundException if the menu item does not exist
+     * @throws ForbiddenException if ownership validation fails
+     */
+    @Transactional
+    public MenuItemResponse updateMenuItemForRestaurant(
+            Long menuItemId, Long restaurantId, MenuItemRequest request
+    ) {
+        MenuItem existingItem = findOwnedMenuItem(menuItemId, restaurantId);
+        menuItemMapper.updateEntityFromRequest(request, existingItem);
+        return menuItemMapper.toResponse(menuItemRepository.save(existingItem));
+    }
+
+    /**
+     * Toggles availability only for a menu item owned by the authenticated restaurant.
+     *
+     * @param menuItemId menu-item identifier
+     * @param restaurantId owning restaurant identifier
+     * @return updated menu item
+     * @throws ResourceNotFoundException if the menu item does not exist
+     * @throws ForbiddenException if ownership validation fails
+     */
+    @Transactional
+    public MenuItemResponse updateItemAvailabilityForRestaurant(
+            Long menuItemId, Long restaurantId
+    ) {
+        MenuItem existingItem = findOwnedMenuItem(menuItemId, restaurantId);
+        existingItem.setIsAvailable(!existingItem.getIsAvailable());
+        return menuItemMapper.toResponse(menuItemRepository.save(existingItem));
+    }
+
+    /**
+     * Soft-deletes a menu item only when it belongs to the authenticated restaurant.
+     *
+     * @param menuItemId menu-item identifier
+     * @param restaurantId owning restaurant identifier
+     * @throws ResourceNotFoundException if the menu item does not exist
+     * @throws ResourceAlreadyTaggedAsDeletedException if the item is already deleted
+     * @throws ForbiddenException if ownership validation fails
+     */
+    @Transactional
+    public void deleteMenuItemSoftForRestaurant(Long menuItemId, Long restaurantId) {
+        MenuItem item = findOwnedMenuItem(menuItemId, restaurantId);
+        if (Boolean.TRUE.equals(item.getIsDeleted())) {
+            throw new ResourceAlreadyTaggedAsDeletedException(menuItemId, "Menu item");
+        }
+        item.setIsDeleted(true);
+        menuItemRepository.save(item);
+    }
+
+    /**
+     * Finds a menu item and verifies it belongs to the requested restaurant.
+     *
+     * @param menuItemId menu-item identifier
+     * @param restaurantId owning restaurant identifier
+     * @return owned menu item
+     * @throws ResourceNotFoundException if the menu item does not exist
+     * @throws ForbiddenException if ownership validation fails
+     */
+    private MenuItem findOwnedMenuItem(Long menuItemId, Long restaurantId) {
+        MenuItem item = menuItemRepository.findById(menuItemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Item", menuItemId));
+        if (item.getRestaurant() == null
+                || !restaurantId.equals(item.getRestaurant().getRestaurantId())) {
+            throw new ForbiddenException("Menu item does not belong to the authenticated restaurant.");
+        }
+        return item;
     }
 }
