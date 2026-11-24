@@ -32,4 +32,10 @@ class OrdertakerApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(result -> assertNull(result.getRequest().getSession(false)));
     }
+
+    @Test
+    void protectedCustomerRequest_shouldRejectUnauthenticatedRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/customers/cart"))
+                .andExpect(status().isUnauthorized());
+    }
 }

@@ -1,12 +1,17 @@
 package com.rvmc.ordertaker.controller;
 
 import com.rvmc.ordertaker.dto.RestaurantProfileResponse;
+import com.rvmc.ordertaker.dto.MenuItemResponse;
 import com.rvmc.ordertaker.exception.GlobalExceptionHandler;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
 import com.rvmc.ordertaker.service.MenuService;
 import com.rvmc.ordertaker.service.OrderService;
 import com.rvmc.ordertaker.service.RestaurantService;
+import com.rvmc.ordertaker.security.AuthenticatedUserService;
+import com.rvmc.ordertaker.security.JwtService;
+import com.rvmc.ordertaker.repository.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -16,11 +21,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.Collections;
 import java.util.List;
+import com.rvmc.ordertaker.entity.Restaurant;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,6 +37,17 @@ class RestaurantControllerTest {
     @MockitoBean private RestaurantService restaurantService;
     @MockitoBean private OrderService orderService;
     @MockitoBean private MenuService menuService;
+    @MockitoBean private AuthenticatedUserService authenticatedUserService;
+    @MockitoBean private JwtService jwtService;
+    @MockitoBean private UserRepository userRepository;
+
+    @BeforeEach
+    void setUp() {
+        Restaurant restaurant = Restaurant.builder().restaurantId(1L).build();
+        when(authenticatedUserService.getRestaurant(
+                org.mockito.ArgumentMatchers.any(org.springframework.security.core.Authentication.class)
+        )).thenReturn(restaurant);
+    }
 
     @Test
     void getRestaurants_shouldReturnAllWhenQueryIsAbsent() throws Exception {
@@ -79,12 +96,40 @@ class RestaurantControllerTest {
     }
 
     @Test
+    void getMenu_shouldReturnActiveMenuItems() throws Exception {
+        MenuItemResponse item = new MenuItemResponse(
+                10L, 5L, "Burger", "Beef burger",
+                java.math.BigDecimal.valueOf(250), true, false
+        );
+        when(menuService.getMenuFromRestaurant(5L)).thenReturn(List.of(item));
+
+        mockMvc.perform(get("/api/v1/restaurants/5/menu"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].menuItemId").value(10))
+                .andExpect(jsonPath("$[0].itemName").value("Burger"));
+    }
+
+    @Test
+    void getMenuItem_shouldReturnMenuItem() throws Exception {
+        MenuItemResponse item = new MenuItemResponse(
+                10L, 5L, "Burger", "Beef burger",
+                java.math.BigDecimal.valueOf(250), true, false
+        );
+        when(menuService.getMenuItemById(10L)).thenReturn(item);
+
+        mockMvc.perform(get("/api/v1/restaurants/menu/10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.menuItemId").value(10));
+    }
+
+    @Test
     void createMenu_shouldReturnBadRequest_whenRequiredFieldsAreInvalid() throws Exception {
         mockMvc.perform(post("/api/v1/restaurants/menu")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"restaurantId\":5,\"itemName\":\" \",\"price\":0.50}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.itemName").exists())
-                .andExpect(jsonPath("$.price").exists());
+                .andExpect(jsonPath("$.error").value("Validation failed"))
+                .andExpect(jsonPath("$.fields.itemName").exists())
+                .andExpect(jsonPath("$.fields.price").exists());
     }
 }

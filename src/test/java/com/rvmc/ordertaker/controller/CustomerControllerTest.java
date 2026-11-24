@@ -10,7 +10,12 @@ import com.rvmc.ordertaker.service.CartService;
 import com.rvmc.ordertaker.service.CustomerService;
 import com.rvmc.ordertaker.service.MenuService;
 import com.rvmc.ordertaker.service.OrderService;
+import com.rvmc.ordertaker.security.AuthenticatedUserService;
+import com.rvmc.ordertaker.security.JwtService;
+import com.rvmc.ordertaker.repository.UserRepository;
+import com.rvmc.ordertaker.entity.Customer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -37,6 +42,18 @@ class CustomerControllerTest {
     @MockitoBean private MenuService menuService;
     @MockitoBean private OrderService orderService;
     @MockitoBean private CartService cartService;
+    @MockitoBean private AuthenticatedUserService authenticatedUserService;
+    @MockitoBean private JwtService jwtService;
+    @MockitoBean private UserRepository userRepository;
+
+    @BeforeEach
+    void setUp() {
+        Customer customer = Customer.builder().customerId(1L).build();
+        when(authenticatedUserService.getCustomer(null)).thenReturn(customer);
+        when(authenticatedUserService.getCustomer(
+                org.mockito.ArgumentMatchers.any(org.springframework.security.core.Authentication.class)
+        )).thenReturn(customer);
+    }
 
     @Test
     void getActiveCart_shouldReturnCartResponse() throws Exception {
@@ -84,7 +101,7 @@ class CustomerControllerTest {
 
     @Test
     void getActiveCart_shouldReturnNotFound_whenCartDoesNotExist() throws Exception {
-        when(cartService.getActiveCart(99L))
+        when(cartService.getActiveCart(1L))
                 .thenThrow(new ResourceNotFoundException("No active cart found."));
 
         mockMvc.perform(get("/api/v1/customers/cart")

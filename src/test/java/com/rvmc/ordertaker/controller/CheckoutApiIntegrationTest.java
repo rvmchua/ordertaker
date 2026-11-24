@@ -3,6 +3,7 @@ package com.rvmc.ordertaker.controller;
 import com.rvmc.ordertaker.entity.*;
 import com.rvmc.ordertaker.entity.enums.Role;
 import com.rvmc.ordertaker.repository.*;
+import com.rvmc.ordertaker.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,10 +43,12 @@ class CheckoutApiIntegrationTest {
     @Autowired private CartRepository cartRepository;
     @Autowired private OrderRepository orderRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private JwtService jwtService;
 
     private Customer customer;
     private Restaurant restaurant;
     private MenuItem menuItem;
+    private String customerToken;
 
     @BeforeEach
     void setUp() {
@@ -69,6 +72,8 @@ class CheckoutApiIntegrationTest {
                 .user(customerUser)
                 .isActive(true)
                 .build());
+        customerUser.setCustomer(customer);
+        customer.setUser(customerUser);
 
         User owner = userRepository.save(User.builder()
                 .username("checkout-owner")
@@ -84,6 +89,8 @@ class CheckoutApiIntegrationTest {
                 .isActive(true)
                 .toDelete(false)
                 .build());
+        owner.setRestaurant(restaurant);
+        restaurant.setOwner(owner);
 
         menuItem = menuItemRepository.save(MenuItem.builder()
                 .restaurant(restaurant)
@@ -93,6 +100,7 @@ class CheckoutApiIntegrationTest {
                 .isAvailable(true)
                 .isDeleted(false)
                 .build());
+        customerToken = jwtService.generateToken(customerUser);
     }
 
     @Test
@@ -100,6 +108,7 @@ class CheckoutApiIntegrationTest {
         Cart cart = createActiveCart((short) 2);
 
         mockMvc.perform(post("/api/v1/customers/order")
+                        .header("Authorization", "Bearer " + customerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(customer.getCustomerId().toString()))
                 .andExpect(status().isOk())
@@ -129,6 +138,7 @@ class CheckoutApiIntegrationTest {
         cartRepository.save(cart);
 
         mockMvc.perform(post("/api/v1/customers/order")
+                        .header("Authorization", "Bearer " + customerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(customer.getCustomerId().toString()))
                 .andExpect(status().isBadRequest())
@@ -144,6 +154,7 @@ class CheckoutApiIntegrationTest {
         createActiveCart((short) 1);
 
         mockMvc.perform(post("/api/v1/customers/order")
+                        .header("Authorization", "Bearer " + customerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(customer.getCustomerId().toString()))
                 .andExpect(status().isNotFound())
@@ -157,15 +168,17 @@ class CheckoutApiIntegrationTest {
     @Test
     void checkoutCart_shouldReturnNotFound_whenCustomerDoesNotExist() throws Exception {
         mockMvc.perform(post("/api/v1/customers/order")
+                        .header("Authorization", "Bearer " + customerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("999"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("Customer not found with id: 999"));
+                .andExpect(jsonPath("$.error").value("No active cart found."));
     }
 
     @Test
     void checkoutCart_shouldReturnNotFound_whenCustomerHasNoActiveCart() throws Exception {
         mockMvc.perform(post("/api/v1/customers/order")
+                        .header("Authorization", "Bearer " + customerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(customer.getCustomerId().toString()))
                 .andExpect(status().isNotFound())

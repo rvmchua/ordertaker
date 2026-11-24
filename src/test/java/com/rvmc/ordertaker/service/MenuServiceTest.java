@@ -6,6 +6,7 @@ import com.rvmc.ordertaker.entity.MenuItem;
 import com.rvmc.ordertaker.entity.Restaurant;
 import com.rvmc.ordertaker.exception.ResourceAlreadyTaggedAsDeletedException;
 import com.rvmc.ordertaker.exception.ResourceNotFoundException;
+import com.rvmc.ordertaker.exception.ForbiddenException;
 import com.rvmc.ordertaker.mapper.MenuItemMapper;
 import com.rvmc.ordertaker.repository.MenuItemRepository;
 import com.rvmc.ordertaker.repository.RestaurantRepository;
@@ -516,5 +517,23 @@ class MenuServiceTest {
         verify(restaurantRepository, times(1)).findById(restaurantId);
         verify(menuItemRepository, never()).findByRestaurantAndIsDeleted(any(), anyBoolean());
         verify(menuItemMapper, never()).toResponse(any());
+    }
+
+    @Test
+    void updateMenuItemForRestaurant_shouldRejectItemOwnedByAnotherRestaurant() {
+        Restaurant otherRestaurant = Restaurant.builder().restaurantId(20L).build();
+        MenuItem item = MenuItem.builder()
+                .menuItemId(10L)
+                .restaurant(otherRestaurant)
+                .build();
+        MenuItemRequest request = new MenuItemRequest(
+                10L, "Changed", null, BigDecimal.valueOf(250), true, false
+        );
+        when(menuItemRepository.findById(10L)).thenReturn(Optional.of(item));
+
+        assertThrows(ForbiddenException.class,
+                () -> menuService.updateMenuItemForRestaurant(10L, 1L, request));
+        verify(menuItemMapper, never()).updateEntityFromRequest(any(), any());
+        verify(menuItemRepository, never()).save(any());
     }
 }

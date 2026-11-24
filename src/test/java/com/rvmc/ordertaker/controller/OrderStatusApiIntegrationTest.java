@@ -10,6 +10,7 @@ import com.rvmc.ordertaker.repository.CustomerRepository;
 import com.rvmc.ordertaker.repository.OrderRepository;
 import com.rvmc.ordertaker.repository.RestaurantRepository;
 import com.rvmc.ordertaker.repository.UserRepository;
+import com.rvmc.ordertaker.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,9 +44,11 @@ class OrderStatusApiIntegrationTest {
     @Autowired private RestaurantRepository restaurantRepository;
     @Autowired private OrderRepository orderRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private JwtService jwtService;
 
     private Customer customer;
     private Restaurant restaurant;
+    private String ownerToken;
 
     @BeforeEach
     void setUp() {
@@ -67,6 +70,8 @@ class OrderStatusApiIntegrationTest {
                 .user(customerUser)
                 .isActive(true)
                 .build());
+        customerUser.setCustomer(customer);
+        customer.setUser(customerUser);
 
         User owner = userRepository.save(User.builder()
                 .username("status-owner")
@@ -82,6 +87,9 @@ class OrderStatusApiIntegrationTest {
                 .isActive(true)
                 .toDelete(false)
                 .build());
+        owner.setRestaurant(restaurant);
+        restaurant.setOwner(owner);
+        ownerToken = jwtService.generateToken(owner);
     }
 
     @Test
@@ -94,6 +102,7 @@ class OrderStatusApiIntegrationTest {
                 .build());
 
         mockMvc.perform(patch("/api/v1/restaurants/order/" + order.getOrderId())
+                        .header("Authorization", "Bearer " + ownerToken)
                         .param("restaurantId", restaurant.getRestaurantId().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"CONFIRMED\"}"))
@@ -117,6 +126,7 @@ class OrderStatusApiIntegrationTest {
                 .build());
 
         mockMvc.perform(patch("/api/v1/restaurants/order/" + order.getOrderId())
+                        .header("Authorization", "Bearer " + ownerToken)
                         .param("restaurantId", restaurant.getRestaurantId().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"FOR_PICKUP\"}"))
